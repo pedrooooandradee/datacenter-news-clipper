@@ -1,0 +1,71 @@
+{
+  "_leia_me": [
+    "Correções feitas à mão que precisam sobreviver à próxima execução.",
+    "",
+    "Antes, a edição manual era feita direto em output/clippings.json e a execução",
+    "seguinte apagava tudo. Aqui não: este arquivo é aplicado por cima do que o",
+    "pipeline produziu, toda vez que o PDF é montado.",
+    "",
+    "A chave é sempre a URL FINAL da matéria (a que está em output/clippings.json),",
+    "nunca o link news.google.com.",
+    "",
+    "O campo 'motivo' é obrigatório em removidas, categoria, resumo e dedup. Ele é",
+    "o que transforma este arquivo em um conjunto de exemplos reais — daqui a dois",
+    "meses os motivos mais frequentes viram os exemplos novos dos prompts. Sem ele,",
+    "sobra uma lista de URLs e nenhuma ideia do padrão.",
+    "",
+    "Os blocos:",
+    "  removidas  — notícia que não deve sair. Vale para sempre, por URL.",
+    "  categoria  — muda a seção do PDF. Valores: clientes, competidores, governo,",
+    "               inovação, outros.",
+    "  resumo     — texto reescrito à mão. Atenção: reescrever o resumo APAGA a",
+    "               caixa de métricas daquela notícia, porque a regra é que o leitor",
+    "               ache os dois números no parágrafo — e o parágrafo mudou.",
+    "  highlight  — lista de URLs grifadas (fundo amarelo no índice).",
+    "  fonte_nome — corrige o nome do veículo.",
+    "  dedup      — funde duplicatas que o programa não pegou. A que fica é",
+    "               'manter'; as de 'fundir' somem e viram 'também noticiado por'.",
+    "  empresa    — aprova a ficha de uma empresa que está em quarentena. Só sai no",
+    "               PDF depois que alguém escreve aqui, com 'aprovado_por'."
+  ],
+
+  "versao": 1,
+
+  "removidas": [],
+  "categoria": [],
+  "resumo": [],
+  "highlight": [],
+  "fonte_nome": [],
+  "dedup": [],
+  "empresa": [],
+
+  "_exemplos": {
+    "removidas": [
+      {"url": "https://exemplo.com/materia", "motivo": "opinião sem fato novo",
+       "data": "2026-09-21"}
+    ],
+    "categoria": [
+      {"url": "https://exemplo.com/materia", "de": "clientes", "para": "inovação",
+       "motivo": "produto de software da AWS, não expansão de infraestrutura"}
+    ],
+    "resumo": [
+      {"url": "https://exemplo.com/materia", "texto": "Resumo corrigido.",
+       "motivo": "o modelo tratou o ReData, que é regime tributário, como empresa"}
+    ],
+    "highlight": ["https://exemplo.com/materia"],
+    "fonte_nome": [
+      {"url": "https://exemplo.com/materia", "para": "Investing.com"}
+    ],
+    "dedup": [
+      {"manter": "https://exemplo.com/a", "fundir": ["https://exemplo.com/b"],
+       "motivo": "mesma sanção, enfoques diferentes"}
+    ],
+    "empresa": [
+      {"nome": "Exemplo Data Centers",
+       "overview": "Operadora brasileira de data centers, fundada em 2019.",
+       "aliases": ["Exemplo DC"],
+       "fonte": "https://exemplo.com/sobre",
+       "aprovado_por": "Pedro", "data": "2026-09-22"}
+    ]
+  }
+}

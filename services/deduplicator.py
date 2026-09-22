@@ -1,480 +1,518 @@
 # services/deduplicator.py
 
+"""
+Removing duplicate coverage, in two stages.
+
+The old version ran a single LLM pass after everything had been scraped and
+summarised, and eleven duplicates still reached the PDF. Three separate defects:
+
+1. It asked the model to echo every article back with title, summary and source,
+   under max_tokens=4096. A batch of fifteen Portuguese summaries overflows that,
+   the JSON arrived truncated, parsing failed, and the code kept everything.
+   This version asks only for lists of ids — sixty articles fit in one call.
+2. Above 25 items it split into batches of 15 that overlapped by 3, so two
+   articles in distant batches were never compared. The three articles about the
+   US House sat at positions 16, 21 and 33.
+3. It kept whichever article came first, not the best one. select_best_from_group
+   existed but was never called, and would have failed anyway because pubDate had
+   already been formatted as "18 Set".
+
+The stages now are:
+
+  cluster_by_title    before scraping. Embeddings over titles only, with a
+                      deliberately high threshold. Cheap, and it saves scraping
+                      and summarising the copies.
+  confirm_groups      after summarising. An LLM decides which candidates really
+                      are the same story, and finds the ones the titles missed.
+
+Measured on the 53 real articles of the 21/09/2026 edition: for true duplicates,
+adding the summary RAISES the cosine (EVEO 0.799 -> 0.899, MP Campinas 0.673 ->
+0.819); for articles that merely share a topic it LOWERS it (0.722 -> 0.667).
+That is why the cheap stage uses titles and the confirming stage uses summaries.
+"""
+
 import os
 import json
-from typing import List, Dict
-from datetime import datetime
+import math
+import re
+from typing import List, Dict, Optional
+
 from dotenv import load_dotenv
-from dateutil import parser
+from openai import OpenAI
 
-from langchain.prompts import (
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-    ChatPromptTemplate,
-)
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
+try:
+    from services.utils.fontes import tier_of
+    from services.utils.projeto import modelo
+    from services.ficha import completude as completude_da_ficha
+except ImportError:
+    from utils.fontes import tier_of
+    from utils.projeto import modelo
+    from ficha import completude as completude_da_ficha
 
-# Load environment variables
 load_dotenv()
 
-# Enhanced system prompt for more accurate duplicate detection
-BATCH_DEDUPLICATION_PROMPT = """You are an expert at identifying duplicate news coverage. Your task is to analyze a list of news articles and identify which ones are duplicates of the SAME story.
+EMBEDDING_MODEL = modelo("embedding")
 
-Two articles are DUPLICATES if they cover the EXACT SAME:
-- Specific business announcement (same company, same investment amount, same location)
-- Specific government policy or law (same legislation, same announcement)
-- Specific study or report (same research, same findings, same organization)
-- Specific event or incident (same date, same participants, same outcome)
+# Calibrated on the 53 real articles. The true pairs run down to 0.768 and the
+# first false pair sits at 0.722 — "Incentivo a data centers amplia infraestrutura"
+# against "Data centers: energia, água e o impacto real da infraestrutura", which
+# share a subject and no facts. 0.75 sits in that gap with room on both sides.
+#
+# Erring high is deliberate: merging before the scrape decides which article is
+# never fetched. What the titles miss, the summaries catch in the second stage.
+# One week of data is one week of data — re-check against the archive once a few
+# editions have accumulated (DECISOES.md, Q21).
+TITLE_THRESHOLD = 0.75
 
-Articles are NOT duplicates if they:
-- Cover different companies or different investments (even if similar amounts)
-- Cover different policies or different government announcements
-- Cover different studies or different time periods of the same topic
-- Cover related but separate events or decisions
-- Are general industry analysis vs specific announcements
 
-EXAMPLES:
-- "TikTok invests R$55B in datacenter in Ceará" + "TikTok to build R$55B datacenter in Ceará" = DUPLICATE
-- "Century invests R$150M in MG datacenter" + "Century announces R$150M datacenter in MG" = DUPLICATE
-- "Century invests R$150M in MG" + "Google invests R$100M in SP" = NOT DUPLICATE
-- "Government announces Policy X" + "Minister confirms Policy X will be launched" = DUPLICATE
+def _client() -> OpenAI:
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-INSTRUCTIONS:
-Return a JSON array where each object has:
-- All original fields (id, title, summary, source, pubDate)
-- A new "duplicate" field set to "yes" or "no"
 
-Process articles in order. An article is duplicate if ANY previous article covers the same story.
+def _cosine(a: List[float], b: List[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(x * x for x in b))
+    return dot / (na * nb) if na and nb else 0.0
 
-RESPOND WITH ONLY THE JSON ARRAY, NO OTHER TEXT."""
+
+# ─────────────────────────────────────────────────────────────────────
+# Stage 1 — cluster by title, before scraping
+# ─────────────────────────────────────────────────────────────────────
+
+def cluster_by_title(items: List[Dict], threshold: float = TITLE_THRESHOLD) -> List[List[int]]:
+    """
+    Group items whose titles are near-identical.
+
+    Returns a list of groups of indices, singletons included, so the caller can
+    treat the output as a partition of the input.
+    """
+    if len(items) <= 1:
+        return [[i] for i in range(len(items))]
+
+    titles = [item.get("title", "") for item in items]
+    try:
+        response = _client().embeddings.create(model=EMBEDDING_MODEL, input=titles)
+        vectors = [row.embedding for row in response.data]
+    except Exception as e:
+        print(f"⚠️  Não consegui gerar embeddings ({type(e).__name__}); "
+              f"nenhum agrupamento prévio será feito.")
+        return [[i] for i in range(len(items))]
+
+    parent = list(range(len(items)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[max(ri, rj)] = min(ri, rj)
+
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            if _cosine(vectors[i], vectors[j]) >= threshold:
+                union(i, j)
+
+    grouped: Dict[int, List[int]] = {}
+    for i in range(len(items)):
+        grouped.setdefault(find(i), []).append(i)
+    return list(grouped.values())
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Stage 2 — confirm with the LLM, over the summaries
+# ─────────────────────────────────────────────────────────────────────
+
+CONFIRM_PROMPT = """Você identifica cobertura duplicada em notícias de um clipping do setor de data centers.
+
+Duas notícias são DUPLICATAS quando relatam o MESMO FATO:
+- mesmo anúncio de investimento (mesma empresa, mesmo valor, mesmo local)
+- mesma decisão de governo, mesma lei, mesma sanção
+- mesmo estudo, mesmo relatório, mesmos números
+- mesmo processo, mesma investigação, mesmo evento
+
+Também conte como duplicata a COBERTURA REDUNDANTE: notícia que repete os fatos de
+outra do mesmo grupo sem trazer nenhum fato novo, mesmo com enfoque diferente.
+
+NÃO são duplicatas:
+- empresas diferentes, mesmo com valores parecidos
+- decisões de governo diferentes, mesmo sobre o mesmo tema
+- análise geral do setor contra anúncio específico
+- reação ou entrevista que acrescenta fato novo (número, prazo, decisão) à notícia original
+
+EXEMPLOS:
+- "Lula sanciona incentivos para data centers" + "Presidente sanciona ReData" = DUPLICATA
+- "Câmara dos EUA aprova projeto sobre data centers" (dois veículos) = DUPLICATA
+- "EVEO terá data center em Recife" + "Eveo escolhe data center da Atlantic" = DUPLICATA
+- "ReData vira lei" + "CEO da Scala diz que ReData não destrava projetos" = NÃO é duplicata (a entrevista traz avaliação nova)
+- "EPE alerta para duplicidade de pedidos" + "Aneel autoriza conexão da Ascenty" = NÃO é duplicata
+
+Responda SOMENTE com um objeto JSON, no formato:
+{"grupos": [[3, 17, 29], [8, 12]]}
+
+Cada lista interna é um grupo de ids que cobrem o mesmo fato. Inclua apenas grupos
+com dois ou mais ids. Não repita um id em mais de um grupo. Não escreva mais nada.
+
+REGRA QUE VENCE TODAS AS OUTRAS: lugar e jurisdição diferentes são fatos
+diferentes. Uma lei da Califórnia e uma regra do Rio Grande do Norte NÃO são
+duplicatas, ainda que as duas regulem data centers. O mesmo vale para projetos em
+cidades diferentes, decisões de órgãos diferentes e empresas diferentes.
+
+Antes de juntar duas notícias, pergunte: elas relatam o MESMO ATO, do MESMO ator,
+no MESMO lugar, na MESMA data? Se a resposta for não em qualquer um dos quatro,
+não são duplicatas — são notícias do mesmo assunto, e assunto não é fato.
+
+Grupo grande é suspeito. Um grupo com mais de 4 ids só se justifica quando é um
+único ato muito coberto, como uma sanção presidencial. Se você está juntando mais
+de 4 porque todas falam do mesmo TEMA, você errou."""
+
+
+def confirm_groups(items: List[Dict], model: Optional[str] = None) -> List[List[int]]:
+    """
+    Ask the model which articles cover the same story, over titles and summaries.
+
+    Only ids come back. The old prompt asked for the whole article echoed back,
+    overflowed the token limit, and every duplicate survived the failed parse.
+    """
+    if len(items) <= 1:
+        return []
+
+    payload = [
+        {
+            "id": i,
+            "titulo": item.get("title", ""),
+            "fonte": item.get("source", ""),
+            "resumo": (item.get("summary", "") or "")[:600],
+        }
+        for i, item in enumerate(items)
+    ]
+
+    try:
+        response = _client().chat.completions.create(
+            model=model or modelo("dedup"),
+            temperature=0.0,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": CONFIRM_PROMPT},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+        )
+        parsed = json.loads(response.choices[0].message.content)
+    except Exception as e:
+        print(f"⚠️  A confirmação de duplicatas falhou ({type(e).__name__}: {e}). "
+              f"Nenhum grupo foi formado — nenhuma notícia foi perdida.")
+        return []
+
+    groups: List[List[int]] = []
+    seen: set = set()
+    for group in parsed.get("grupos", []):
+        if not isinstance(group, list):
+            continue
+        valid = [i for i in group
+                 if isinstance(i, int) and 0 <= i < len(items) and i not in seen]
+        if len(valid) >= 2:
+            groups.append(valid)
+            seen.update(valid)
+    return groups
+
+
+def prune_clusters_before_scrape(items: List[Dict]) -> List[Dict]:
+    """
+    Group near-identical titles and mark all but the two best-sourced as reserve.
+
+    Two, not one: the article that wins on source is not always the one carrying
+    the project's figures. In the EVEO cluster the best-sourced piece has no capex
+    and no capacity, while the one that does — BNamericas — would have been thrown
+    away by a rule that kept a single winner. Keeping two lets the real contest
+    happen later, over what the articles say.
+
+    The rest are MARKED, not removed. They used to be deleted here, before anyone
+    knew whether the two chosen ones could even be fetched — and the two best by
+    tier are exactly the ones most likely to be behind Cloudflare or a paywall. A
+    week where the sanction was covered by two tier-1 outlets that both blocked
+    and one tier-3 outlet that loaded would have lost the story entirely, and the
+    third copy was already in hand. The measured saving of not fetching them was
+    one article in fifty-three, so holding them costs almost nothing.
+    """
+    if len(items) <= 1:
+        return items
+
+    groups = cluster_by_title(items)
+    multi = [g for g in groups if len(g) > 1]
+    if not multi:
+        print(f"Agrupamento por título: nenhum par acima de {TITLE_THRESHOLD}.")
+        return items
+
+    reservas = 0
+    for numero, group in enumerate(multi, 1):
+        ranked = sorted(group, key=lambda i: (tier_of(items[i].get("source", "")), i))
+        keep, reserva = ranked[:2], ranked[2:]
+
+        for posicao, i in enumerate(ranked):
+            items[i]["_grupo_id"] = numero
+            items[i]["_grupo_ordem"] = posicao
+        for i in reserva:
+            items[i]["_reserva"] = True
+            reservas += 1
+
+        print(f"  Grupo de {len(group)} títulos quase idênticos: "
+              f"coleta {', '.join(items[i].get('source', '?') for i in keep)}"
+              + (f" · reserva {', '.join(items[i].get('source', '?') for i in reserva)}"
+                 if reserva else ""))
+
+    print(f"Agrupamento por título: {len(multi)} grupos, "
+          f"{reservas} cópias guardadas como reserva (não serão coletadas "
+          f"a menos que as escolhidas falhem)")
+    return items
+
+
+def promover_reservas(items: List[Dict]) -> List[Dict]:
+    """
+    Wake up a group's reserve when every article chosen for it came back empty.
+
+    Returns the items that now need fetching, in the caller's list, already
+    unmarked. An empty list is the normal case.
+    """
+    grupos: Dict[int, List[Dict]] = {}
+    for item in items:
+        if item.get("_grupo_id"):
+            grupos.setdefault(item["_grupo_id"], []).append(item)
+
+    promovidos: List[Dict] = []
+    for numero, membros in sorted(grupos.items()):
+        escolhidos = [m for m in membros if not m.get("_reserva")]
+        if any(m.get("body") for m in escolhidos):
+            continue
+        reservas = sorted((m for m in membros if m.get("_reserva")),
+                          key=lambda m: m.get("_grupo_ordem", 99))
+        if not reservas:
+            continue
+        melhor = reservas[0]
+        melhor.pop("_reserva", None)
+        promovidos.append(melhor)
+        print(f"↩️  Grupo {numero}: as escolhidas não carregaram "
+              f"({', '.join(m.get('source', '?') for m in escolhidos)}); "
+              f"coletando a reserva {melhor.get('source', '?')}")
+
+    return promovidos
+
+
+def descartar_reservas(items: List[Dict]) -> List[Dict]:
+    """
+    Drop the copies that were never needed, remembering the outlets by name.
+
+    The names land on the surviving members of the group, so the "também
+    noticiado por" line still credits every outlet that covered the story.
+    """
+    restantes, descartadas = [], 0
+    por_grupo: Dict[int, List[str]] = {}
+
+    for item in items:
+        if item.get("_reserva"):
+            por_grupo.setdefault(item.get("_grupo_id"), []).append(
+                item.get("source", "?"))
+            descartadas += 1
+        else:
+            restantes.append(item)
+
+    for item in restantes:
+        nomes = por_grupo.get(item.get("_grupo_id"))
+        if not nomes:
+            continue
+        existentes = set(item.get("_fontes_do_grupo") or [])
+        item["_fontes_do_grupo"] = sorted(
+            (existentes | set(nomes)) - {item.get("source", "")})
+
+    if descartadas:
+        print(f"{descartadas} cópias de reserva dispensadas (as escolhidas do grupo "
+              f"foram coletadas); os veículos seguem nomeados no clipping.")
+    return restantes
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Choosing which article survives
+# ─────────────────────────────────────────────────────────────────────
+
+_NUMBER = re.compile(
+    r'(?:R\$|US\$|CHF|€)\s?[\d\.,]+\s*(?:mil|milh[õo]es|bilh[õo]es|tri)?'
+    r'|[\d\.,]+\s*(?:MW|GW|kW|kV|m²|mil m²|hectares?|%)',
+    re.I,
+)
+
+# Sentences framed around the market rather than the company. Figures inside them
+# describe something else, and counting them rewards the wrong article: the Exame
+# piece on EVEO's Recife site carried six figures, four of which were about the
+# Brazilian market as a whole (106 MW added, US$ 8bn, 4% vacancy).
+_MARKET_FRAME = re.compile(
+    r'\bo Brasil\b|\bno pa[ií]s\b|\bo setor\b|\bmercado\b|Am[ée]rica Latina|vac[âa]ncia',
+    re.I,
+)
+
+
+def subject_figures(summary: str) -> int:
+    """
+    Count the figures that describe the article's own subject.
+
+    Measured on the EVEO cluster: BNamericas 9, Exame 2, Data Center Dynamics 2 —
+    and BNamericas is the article carrying the project's capex, its capacity and
+    the phase they belong to.
+    """
+    if not summary:
+        return 0
+    all_figures = {m.group(0).strip() for m in _NUMBER.finditer(summary)}
+    market_figures: set = set()
+    for sentence in re.split(r'(?<=[.;])\s+', summary):
+        if _MARKET_FRAME.search(sentence):
+            market_figures |= {m.group(0).strip() for m in _NUMBER.finditer(sentence)}
+    return len(all_figures - market_figures)
+
+
+def completeness(item: Dict) -> int:
+    """
+    How much an article says about its own subject.
+
+    Reads the structured record when there is one (DECISOES.md, Q14): figures
+    marked `projeto` or `empresa` describe the subject, market figures do not, and
+    the scope mark answers that directly instead of inferring it from wording.
+
+    Falls back to counting figures in the summary, discounting those inside
+    market-framed sentences, when there is no record — which happens when dedup is
+    re-run over a cache produced before records existed. The fallback is the
+    weaker measure, which is precisely why it is only the fallback.
+    """
+    if item.get("ficha"):
+        return completude_da_ficha(item)
+    return subject_figures(item.get("summary", ""))
+
+
+def select_survivor(items: List[Dict], group: List[int]) -> int:
+    """
+    Pick which article of a group is published.
+
+    Tier is a gate, not a tiebreaker. On the Campinas investigation the deputy's
+    campaign site carried four figures against one in the G1 piece, so completeness
+    alone would have published the campaign site. Tier 3 outlets are excluded from
+    the contest unless the whole group is tier 3.
+
+    Among the eligible, the winner is the most complete. When that genuinely ties,
+    the better-sourced article wins, and length decides only after that. Length is
+    the weak measure that would have picked the Exame piece over BNamericas in the
+    EVEO cluster; it must never beat a stronger outlet.
+    """
+    eligible = [i for i in group if tier_of(items[i].get("source", "")) <= 2]
+    if not eligible:
+        eligible = list(group)
+
+    return max(
+        eligible,
+        key=lambda i: (
+            completeness(items[i]),
+            -tier_of(items[i].get("source", "")),
+            len(items[i].get("summary", "") or ""),
+        ),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Entry point
+# ─────────────────────────────────────────────────────────────────────
 
 def deduplicate_by_summary(items: List[Dict], confidence_threshold: float = 0.7) -> List[Dict]:
     """
-    Remove duplicate news articles using batch LLM-based semantic comparison.
-    
-    Args:
-        items: List of news items, each containing 'summary', 'title', 'pubDate', etc.
-        confidence_threshold: Not used in batch mode, kept for compatibility
-    
-    Returns:
-        List of deduplicated news items
+    Remove duplicate coverage, keeping a record of what was merged.
+
+    The survivor gains 'tambem_noticiado_por', which becomes the "também noticiado
+    por: …" line in the PDF. Fourteen outlets covering the same sanction is
+    information for the reader, not noise — and it makes the deduplication
+    auditable instead of a black box.
     """
-    
     if not items or len(items) <= 1:
         return items
-    
-    print(f"Analyzing {len(items)} items for semantic duplicates (batch mode)...")
-    
-    # Initialize LLM with GPT-4o-mini for better cost efficiency
-    llm = ChatOpenAI(
-        temperature=0.0,
-        model_name="gpt-4o-mini",
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
-        streaming=False,
-        max_tokens=4096
-        # Using gpt-4o-mini for better cost efficiency while maintaining good performance
-    )
-    
-    # For larger datasets, we can still batch, but let's try processing all at once first
-    if len(items) <= 25:  # Reduced from 50 to avoid token limits
-        # Process all at once for better cross-article duplicate detection
-        return process_single_batch(items, llm)
-    else:
-        # For very large datasets, use overlapping batches
-        return process_overlapping_batches(items, llm)
+
+    print(f"Procurando cobertura duplicada em {len(items)} notícias...")
+    groups = confirm_groups(items)
+
+    if not groups:
+        print("Nenhum grupo de duplicatas identificado.")
+        return _resgatar_fontes_orfas(items)
+
+    dropped: set = set()
+    for group in groups:
+        survivor = select_survivor(items, group)
+        others = [i for i in group if i != survivor]
+        dropped.update(others)
+
+        # Outlets dropped before the scrape are named here too, so the line does
+        # not quietly shrink just because a copy never got fetched.
+        names = {items[i].get("source", "?") for i in others}
+        for i in group:
+            names |= set(items[i].get("_fontes_do_grupo", []))
+        names.discard(items[survivor].get("source", "?"))
+        items[survivor]["tambem_noticiado_por"] = sorted(names)
+
+        for i in others:
+            items[i]["duplicate_of"] = items[survivor].get("url", "")
+
+        print(f"  Grupo de {len(group)}: fica {items[survivor].get('source', '?')} "
+              f"(tier {tier_of(items[survivor].get('source', ''))}, "
+              f"completude {completeness(items[survivor])})")
+        for i in others:
+            print(f"     sai {items[i].get('source', '?')}: {items[i].get('title', '')[:60]}")
+
+    kept = [item for i, item in enumerate(items) if i not in dropped]
+    print(f"{len(items)} -> {len(kept)} notícias ({len(dropped)} duplicatas removidas)")
+    return _resgatar_fontes_orfas(kept)
 
 
-def process_single_batch(items: List[Dict], llm) -> List[Dict]:
-    """Process all items in a single batch for optimal duplicate detection."""
-    
-    print(f"Processing all {len(items)} articles in single batch...")
-    
-    # Create prompt template
-    system_msg = SystemMessagePromptTemplate.from_template(BATCH_DEDUPLICATION_PROMPT)
-    human_msg = HumanMessagePromptTemplate.from_template(
-        """Analyze these articles for duplicates:
-
-{articles_json}
-
-Return JSON array with "duplicate" field added to each article:"""
-    )
-    prompt = ChatPromptTemplate.from_messages([system_msg, human_msg])
-    
-    # Create chain
-    chain = prompt | llm | StrOutputParser()
-    
-    # Prepare articles for LLM with key information
-    articles_for_llm = []
-    for i, item in enumerate(items):
-        articles_for_llm.append({
-            "id": i,
-            "title": item.get("title", ""),
-            "summary": item.get("summary", ""),
-            "source": item.get("source", ""),
-            "pubDate": item.get("pubDate", "")
-        })
-    
-    try:
-        # Get LLM response
-        raw_result = chain.invoke({
-            "articles_json": json.dumps(articles_for_llm, indent=2, ensure_ascii=False)
-        })
-        
-        print(f"Raw LLM response (first 200 chars): {raw_result[:200]}")
-        
-        # Parse the response
-        marked_articles = parse_batch_response(raw_result)
-        
-        if marked_articles is None:
-            print("Failed to parse LLM response, keeping all articles")
-            return items
-        
-        # Extract non-duplicate items
-        deduplicated = []
-        duplicates_found = 0
-        
-        for marked_article in marked_articles:
-            article_id = marked_article.get("id")
-            is_duplicate = marked_article.get("duplicate", "no").lower() == "yes"
-            
-            if not is_duplicate and article_id is not None and article_id < len(items):
-                deduplicated.append(items[article_id])
-            elif is_duplicate:
-                duplicates_found += 1
-                title = marked_article.get('title', items[article_id].get('title', 'Unknown') if article_id < len(items) else 'Unknown')
-                print(f"  Article {article_id} marked as duplicate: '{title[:80]}...'")
-        
-        print(f"Single batch result: {len(items)} -> {len(deduplicated)} items ({duplicates_found} duplicates found)")
-        return deduplicated
-        
-    except Exception as e:
-        print(f"Error in single batch deduplication: {e}")
-        print("Falling back to keeping all articles")
-        return items
-
-
-def process_overlapping_batches(items: List[Dict], llm) -> List[Dict]:
-    """Process items in overlapping batches to catch cross-batch duplicates."""
-    
-    batch_size = 15  # Smaller batch size to avoid token limits
-    overlap = 3  # Smaller overlap
-    all_deduplicated = []
-    processed_indices = set()
-    
-    for batch_start in range(0, len(items), batch_size - overlap):
-        batch_end = min(batch_start + batch_size, len(items))
-        batch_items = items[batch_start:batch_end]
-        
-        print(f"Processing overlapping batch: articles {batch_start+1}-{batch_end}")
-        
-        # Create the batch indices for tracking
-        batch_indices = list(range(batch_start, batch_end))
-        
-        # Process this batch with process_single_batch logic inline
-        # Create prompt template
-        system_msg = SystemMessagePromptTemplate.from_template(BATCH_DEDUPLICATION_PROMPT)
-        human_msg = HumanMessagePromptTemplate.from_template(
-            """Analyze these articles for duplicates:
-
-{articles_json}
-
-Return JSON array with "duplicate" field added to each article:"""
-        )
-        prompt = ChatPromptTemplate.from_messages([system_msg, human_msg])
-        
-        # Create chain
-        chain = prompt | llm | StrOutputParser()
-        
-        # Prepare articles for LLM with key information
-        articles_for_llm = []
-        for i, item in enumerate(batch_items):
-            articles_for_llm.append({
-                "id": i,
-                "title": item.get("title", ""),
-                "summary": item.get("summary", ""),
-                "source": item.get("source", ""),
-                "pubDate": item.get("pubDate", "")
-            })
-        
-        try:
-            # Get LLM response
-            raw_result = chain.invoke({
-                "articles_json": json.dumps(articles_for_llm, indent=2, ensure_ascii=False)
-            })
-            
-            # Parse the response
-            marked_articles = parse_batch_response(raw_result)
-            
-            if marked_articles is None:
-                print(f"Failed to parse LLM response for batch, keeping all articles in this batch")
-                # Add items we haven't processed yet
-                for i, item in enumerate(batch_items):
-                    original_idx = batch_indices[i]
-                    if original_idx not in processed_indices:
-                        all_deduplicated.append(item)
-                        processed_indices.add(original_idx)
-                continue
-            
-            # Extract non-duplicate items from this batch
-            duplicates_found = 0
-            
-            for marked_article in marked_articles:
-                local_id = marked_article.get("id")
-                is_duplicate = marked_article.get("duplicate", "no").lower() == "yes"
-                
-                if local_id is not None and local_id < len(batch_items):
-                    original_idx = batch_indices[local_id]
-                    
-                    if not is_duplicate and original_idx not in processed_indices:
-                        all_deduplicated.append(batch_items[local_id])
-                        processed_indices.add(original_idx)
-                    elif is_duplicate:
-                        duplicates_found += 1
-                        title = marked_article.get('title', batch_items[local_id].get('title', 'Unknown'))
-                        print(f"  Article {original_idx} marked as duplicate: '{title[:60]}...'")
-                        processed_indices.add(original_idx)  # Mark as processed even if duplicate
-            
-            print(f"Batch {batch_start+1}-{batch_end}: processed {len(batch_items)} articles, {duplicates_found} duplicates found")
-            
-        except Exception as e:
-            print(f"Error in batch {batch_start+1}-{batch_end} deduplication: {e}")
-            # Add items we haven't processed yet
-            for i, item in enumerate(batch_items):
-                original_idx = batch_indices[i]
-                if original_idx not in processed_indices:
-                    all_deduplicated.append(item)
-                    processed_indices.add(original_idx)
-    
-    print(f"Final overlapping batch result: {len(items)} -> {len(all_deduplicated)} items")
-    return all_deduplicated
-
-
-def parse_batch_response(raw_response: str) -> List[Dict]:
+def _resgatar_fontes_orfas(items: List[Dict]) -> List[Dict]:
     """
-    Parse the LLM batch response and extract the marked articles.
-    Enhanced with better error handling and JSON extraction.
-    """
-    # Clean the response
-    cleaned_response = raw_response.strip()
-    
-    # Try direct JSON parsing first (expecting array)
-    try:
-        result = json.loads(cleaned_response)
-        if isinstance(result, list):
-            return result
-        elif isinstance(result, dict) and "articles" in result:
-            return result["articles"]
-    except json.JSONDecodeError:
-        pass
-    
-    # Try to extract JSON from markdown code blocks
-    if '```json' in cleaned_response or '```' in cleaned_response:
-        try:
-            start = cleaned_response.find('```')
-            if cleaned_response[start:start+7] == '```json':
-                start += 7
-            else:
-                start += 3
-            end = cleaned_response.find('```', start)
-            if end > start:
-                json_str = cleaned_response[start:end].strip()
-                result = json.loads(json_str)
-                if isinstance(result, list):
-                    return result
-                elif isinstance(result, dict) and "articles" in result:
-                    return result["articles"]
-        except json.JSONDecodeError:
-            pass
-    
-    # Try to find JSON array within the response (most likely)
-    try:
-        start = cleaned_response.find('[')
-        end = cleaned_response.rfind(']') + 1
-        
-        if start >= 0 and end > start:
-            json_str = cleaned_response[start:end]
-            result = json.loads(json_str)
-            if isinstance(result, list):
-                return result
-    except json.JSONDecodeError:
-        pass
-    
-    # Try to find JSON object within the response (fallback)
-    try:
-        start = cleaned_response.find('{')
-        if start >= 0:
-            # Find matching closing brace
-            brace_count = 0
-            end = start
-            for i, char in enumerate(cleaned_response[start:], start):
-                if char == '{':
-                    brace_count += 1
-                elif char == '}':
-                    brace_count -= 1
-                    if brace_count == 0:
-                        end = i + 1
-                        break
-            
-            if end > start:
-                json_str = cleaned_response[start:end]
-                result = json.loads(json_str)
-                if isinstance(result, dict) and "articles" in result:
-                    return result["articles"]
-    except json.JSONDecodeError:
-        pass
-    
-    print("Could not parse LLM response as JSON. Raw response:")
-    print(cleaned_response[:500] + "..." if len(cleaned_response) > 500 else cleaned_response)
-    return None
+    Make sure an outlet dropped before the scrape still gets named.
 
+    The title stage drops the third and further copies of a group and records
+    their names on the survivors. Those names only became the "também noticiado
+    por" line if the LLM stage later confirmed the same group — and when it did
+    not, the outlet disappeared from the edition with no trace. That is a silent
+    cut (DECISOES.md, Q24), caused by a step whose whole purpose is to keep the
+    merge visible.
+    """
+    resgatadas = 0
+    for item in items:
+        do_grupo = set(item.get("_fontes_do_grupo") or [])
+        if not do_grupo:
+            continue
+        do_grupo.discard(item.get("source", ""))
+        existentes = set(item.get("tambem_noticiado_por") or [])
+        if do_grupo - existentes:
+            item["tambem_noticiado_por"] = sorted(existentes | do_grupo)
+            resgatadas += 1
 
-def select_best_from_group(group_items: List[Dict]) -> int:
-    """
-    Select the best item from a group of duplicates based on:
-    1. Most recent publication date
-    2. Longest summary (most comprehensive coverage)
-    3. Title length as tiebreaker
-    
-    Returns:
-        Index of the best item in the group
-    """
-    
-    def get_date_score(item):
-        """Convert date to timestamp for comparison (more recent = higher score)"""
-        try:
-            pub_date = item.get('pubDate', '')
-            if isinstance(pub_date, str):
-                # Try to parse the formatted date string
-                dt = parser.parse(pub_date)
-            else:
-                dt = pub_date
-            return dt.timestamp()
-        except:
-            return 0
-    
-    def get_summary_score(item):
-        """Return summary length"""
-        return len(item.get('summary', ''))
-    
-    def get_title_score(item):
-        """Return title length as tiebreaker"""
-        return len(item.get('title', ''))
-    
-    best_idx = 0
-    best_date_score = get_date_score(group_items[0])
-    best_summary_score = get_summary_score(group_items[0])
-    best_title_score = get_title_score(group_items[0])
-    
-    for i, item in enumerate(group_items[1:], 1):
-        date_score = get_date_score(item)
-        summary_score = get_summary_score(item)
-        title_score = get_title_score(item)
-        
-        # Prioritize by: 1) Date, 2) Summary length, 3) Title length
-        if (date_score > best_date_score or 
-            (date_score == best_date_score and summary_score > best_summary_score) or
-            (date_score == best_date_score and summary_score == best_summary_score and title_score > best_title_score)):
-            
-            best_idx = i
-            best_date_score = date_score
-            best_summary_score = summary_score
-            best_title_score = title_score
-    
-    return best_idx
+    if resgatadas:
+        print(f"   {resgatadas} notícias recuperaram o nome de veículos descartados "
+              f"antes da coleta (o grupo não foi reconfirmado sobre os resumos).")
+    return items
 
 
 if __name__ == "__main__":
-    print("=== Testing Deduplication with Real Data ===")
-    
-    # Load actual clippings.json for testing
-    try:
-        with open("output/clippings.json", "r", encoding="utf-8") as f:
-            real_items = json.load(f)
-        
-        print(f"Loaded {len(real_items)} real articles from clippings.json")
-        
-        # Show some examples of obvious duplicates for verification
-        print("\n=== Sample of articles (to spot obvious duplicates) ===")
-        for i, item in enumerate(real_items[:15]):
-            print(f"{i+1:2d}: {item['title'][:80]}...")
-        
-        print("\n=== Running deduplication ===")
-        deduplicated = deduplicate_by_summary(real_items)
-        
-        print(f"\n=== Results ===")
-        print(f"Original articles: {len(real_items)}")
-        print(f"After deduplication: {len(deduplicated)}")
-        print(f"Duplicates removed: {len(real_items) - len(deduplicated)}")
-        
-        # Show remaining articles
-        print(f"\n=== Remaining articles after deduplication ===")
-        for i, item in enumerate(deduplicated):
-            print(f"{i+1:2d}: {item['title']}")
-            
-    except FileNotFoundError:
-        print("clippings.json not found, using sample data instead")
-        
-        # Fallback to sample data
-        sample_items = [
-            {
-                "title": "TikTok construirá datacenter de R$ 55 bilhões no interior do Ceará",
-                "source": "Canal Solar",
-                "url": "https://example.com/1",
-                "pubDate": "06 Jun",
-                "summary": "O TikTok investirá R$ 55 bilhões na construção de um datacenter em Caucaia (CE), já com licença prévia aprovada; o projeto contará com o suporte da Casa dos Ventos para fornecimento de energia renovável.",
-                "class": "relevant",
-                "category": "clientes"
-            },
-            {
-                "title": "TikTok to build R$55 billion data center in Ceará state",
-                "source": "Canal Solar EN",
-                "url": "https://example.com/2", 
-                "pubDate": "06 Jun",
-                "summary": "A TikTok anunciou um investimento de aproximadamente R$55 bilhões na construção de um mega data center em Caucaia (CE), já com licença de construção preliminar aprovada.",
-                "class": "relevant",
-                "category": "clientes"
-            },
-            {
-                "title": "Century anuncia data center de R$ 150 milhões em MG para 2026",
-                "source": "Mobile Time",
-                "url": "https://example.com/3",
-                "pubDate": "06 Jun",
-                "summary": "A Century anunciou um investimento de R$ 150 milhões para a construção de um data center em Contagem, MG, com previsão de início das operações no primeiro trimestre de 2026.",
-                "class": "relevant", 
-                "category": "competidores"
-            },
-            {
-                "title": "Empresa de tecnologia vai investir R$ 150 milhões em novo data center na Região Metropolitana de BH",
-                "source": "Hoje em Dia",
-                "url": "https://example.com/4",
-                "pubDate": "06 Jun", 
-                "summary": "A Century anunciou um investimento de R$ 150 milhões na construção de um novo data center em Contagem, na Região Metropolitana de Belo Horizonte, com operação prevista para o primeiro semestre de 2026.",
-                "class": "relevant",
-                "category": "competidores"
-            },
-            {
-                "title": "NVIDIA unveils new AI chip for data centers",
-                "source": "Hardware Today",
-                "url": "https://example.com/5",
-                "pubDate": "17 Jun", 
-                "summary": "NVIDIA unveiled its latest AI processing chip designed for data center workloads with improved performance and energy efficiency. The new H200 chip offers 2x faster processing.",
-                "class": "relevant",
-                "category": "hardware"
-            }
-        ]
-        
-        print("=== Original sample items ===")
-        for i, item in enumerate(sample_items):
-            print(f"{i+1}: {item['title']}")
-        
-        deduplicated = deduplicate_by_summary(sample_items)
-        
-        print("\n=== After deduplication ===")
-        for i, item in enumerate(deduplicated):
-            print(f"{i+1}: {item['title']}")
-    
-    except Exception as e:
-        print(f"Error during testing: {e}")
-        import traceback
-        traceback.print_exc() 
+    with open("output/clippings.json", "r", encoding="utf-8") as f:
+        real = json.load(f)
+
+    print(f"=== {len(real)} notícias reais ===\n")
+
+    print("--- números do sujeito, no cluster EVEO ---")
+    for i in (1, 12, 23):
+        print(f"  [{i:2}] {real[i]['source'][:18]:20} {subject_figures(real[i]['summary']):2} números")
+
+    print("\n--- sobrevivente por grupo conhecido ---")
+    for label, group, expected in [
+        ("EVEO/Recife", [1, 12, 23], 12),
+        ("ReData sanção", [18, 50], 18),
+        ("MP Campinas", [15, 30], 15),
+        ("Câmara dos EUA", [21, 26], None),
+    ]:
+        winner = select_survivor(real, group)
+        mark = "" if expected is None else ("  ok" if winner == expected else "  DIVERGE")
+        print(f"  {label:16} fica [{winner}] {real[winner]['source'][:22]}{mark}")

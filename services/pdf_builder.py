@@ -1,6 +1,9 @@
 import json
 import os
-from datetime import datetime, timedelta
+import sys
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional
+
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from dotenv import load_dotenv
 
@@ -14,96 +17,211 @@ if pkg_config_path:
 
 from weasyprint import HTML
 
-# ─────────────────────────────────────────────────────────────────────
-# Paths (relative to services/ directory)
-# ─────────────────────────────────────────────────────────────────────
-SERVICES_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SERVICES_DIR)
-JSON_PATH = os.path.join(PROJECT_ROOT, "output", "clippings.json")
-CONFIGS_DIR = os.path.join(PROJECT_ROOT, "configs")
-OUTPUT_PDF = os.path.join(PROJECT_ROOT, "output", "clippings_output.pdf")  # Save PDF in output/
+# Running this file directly is the documented way to rebuild only the PDF, so the
+# project root has to be importable either way.
+_SERVICES_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_SERVICES_DIR)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from services.utils.archive import archive_final, data_da_edicao
+from services.utils.datetime_utils import format_datetime_br
+from services.utils.fontes import tier_of
+from services import empresas, overrides
 
 # ─────────────────────────────────────────────────────────────────────
-# 1) Load the JSON clippings into Python and assign unique IDs
+# Paths
 # ─────────────────────────────────────────────────────────────────────
-def load_clippings(json_filepath):
+SERVICES_DIR = _SERVICES_DIR
+PROJECT_ROOT = _PROJECT_ROOT
+JSON_PATH = os.path.join(PROJECT_ROOT, "output", "clippings.json")
+CONFIGS_DIR = os.path.join(PROJECT_ROOT, "configs")
+OUTPUT_PDF = os.path.join(PROJECT_ROOT, "output", "clippings_output.pdf")
+
+# The order the sections are printed in. It is defined here, not only in the
+# template, because "first appearance" of a company is defined by reading order.
+ORDEM_CATEGORIAS = ["clientes", "competidores", "governo", "inovação", "outros"]
+CATEGORIA_PADRAO = "outros"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 1) Load, correct, and put in reading order
+# ─────────────────────────────────────────────────────────────────────
+
+def _quando(item: Dict) -> str:
     """
-    Reads the JSON file containing a list of clipping dicts.
-    Each dict must have: title, url, pubDate, source, summary.
-    Adds a unique 'id' field to each clipping for in-page anchors.
-    Returns a Python list of dicts.
+    The date to show and to sort by, as text.
+
+    The page's own metadata wins over the feed's. Google News reported a 2012
+    article about AMD as this week's news; the page did not. When the page carries
+    no date, the feed's is what there is.
+    """
+    return str(item.get("page_date") or item.get("pubDate") or "")
+
+
+def _instante(item: Dict) -> Optional[datetime]:
+    """The moment the article was published, in a comparable form."""
+    texto = _quando(item)
+    if not texto:
+        return None
+    try:
+        quando = datetime.fromisoformat(texto)
+    except ValueError:
+        return None
+    return quando if quando.tzinfo else quando.replace(tzinfo=timezone.utc)
+
+
+def _chave_de_ordem(item: Dict):
+    """Section order, then highlights, then most recent first."""
+    categoria = item.get("category", CATEGORIA_PADRAO)
+    indice = ORDEM_CATEGORIAS.index(categoria) if categoria in ORDEM_CATEGORIAS \
+        else len(ORDEM_CATEGORIAS)
+    quando = _instante(item)
+    # Sorted by instant, not by the text of the date. The stored strings keep the
+    # page's own offset — "-03:00" for a Brazilian outlet, "+00:00" for a foreign
+    # one — so comparing them as text put 21/09 23:00 BRT after 22/09 01:00 UTC,
+    # which is the same moment plus two hours, in the wrong order.
+    return (indice, not item.get("highlight", False), quando is None,
+            -(quando.timestamp() if quando else 0.0))
+
+
+def load_clippings(json_filepath: str) -> List[Dict]:
+    """
+    Read the edition, apply the manual corrections, and put it in reading order.
+
+    Everything that decides what the reader sees happens here, in this order:
+    corrections from configs/overrides.json, then the category a template can
+    actually draw, then the order, then the company boxes — which depend on the
+    order, because a box appears at a company's first appearance.
     """
     with open(json_filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # Assign a unique anchor ID to each item (e.g. item-1, item-2, …)
+    data, relatorio = overrides.aplicar(data)
+    overrides.relatar(relatorio)
+
+    # The source gate runs at search time, where it is cheapest. It runs again
+    # here because rebuilding the PDF from an older clippings.json skips that
+    # stage entirely — which is how, in the test of this very change, the SEO
+    # filler titled "… Sobretaxa de 10% [2026]" came back into the index of a
+    # rebuilt edition. Only tier 4 is refused; an unlisted outlet is tier 3 and
+    # goes through, so a story added by hand is never blocked by this.
+    bloqueadas = [item for item in data
+                  if tier_of(item.get("source", ""), item.get("title", "")) >= 4]
+    if bloqueadas:
+        print(f"⚠️  {len(bloqueadas)} notícias de fonte tier 4 retiradas na montagem "
+              f"do PDF (conteúdo de SEO / sem redação identificável):")
+        for item in bloqueadas:
+            print(f"     - {item.get('source', '?')}: {item.get('title', '')[:60]}")
+        bloqueadas_urls = {item.get("url") for item in bloqueadas}
+        data = [item for item in data if item.get("url") not in bloqueadas_urls]
+
+    # The template draws five sections. Anything else used to be dropped with no
+    # message: the article simply was not in the PDF and nothing said so.
+    fora = [item for item in data if item.get("category") not in ORDEM_CATEGORIAS]
+    for item in fora:
+        print(f"⚠️  Categoria {item.get('category')!r} não existe no PDF; "
+              f"'{item.get('title', '')[:50]}' foi para {CATEGORIA_PADRAO}.")
+        item["category"] = CATEGORIA_PADRAO
+
+    data.sort(key=_chave_de_ordem)
+
+    # Anchor ids follow reading order, so the index links land where they should.
     for idx, item in enumerate(data, start=1):
         item["id"] = f"item-{idx}"
+        item["data_exibida"] = _data_br(_quando(item))
+
+    data, relatorio_empresas = empresas.atribuir_fichas(data)
+    empresas.relatar(relatorio_empresas)
+
     return data
 
+
 # ─────────────────────────────────────────────────────────────────────
-# 2) Initialize Jinja2 environment pointing to "configs/"
+# 2) Jinja2
 # ─────────────────────────────────────────────────────────────────────
-def init_jinja2_environment(configs_dir):
-    """
-    Configures Jinja2 to load HTML templates from the configs directory.
-    """
+
+def _data_br(valor) -> str:
+    """Render a stored date as "21 Set", tolerating text, datetime or nothing."""
+    if not valor:
+        return ""
+    if isinstance(valor, datetime):
+        return format_datetime_br(valor)
+    try:
+        return format_datetime_br(datetime.fromisoformat(str(valor)))
+    except ValueError:
+        # Editions produced before the date travelled whole already hold "21 Set".
+        return str(valor)
+
+
+def init_jinja2_environment(configs_dir: str) -> Environment:
+    """Configure Jinja2 to load HTML templates from the configs directory."""
     env = Environment(
         loader=FileSystemLoader(configs_dir),
         autoescape=select_autoescape(["html", "xml"]),
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.filters["data_br"] = _data_br
     return env
 
-# ─────────────────────────────────────────────────────────────────────
-# 3) Render the HTML string using the Jinja2 template
-# ─────────────────────────────────────────────────────────────────────
-def render_html(env, template_name, items):
-    """
-    Given a Jinja2 Environment and template filename, render it with "items".
-    Returns the complete HTML as a string.
-    """
-    template = env.get_template(template_name)
-    html_content = template.render(
-        items=items,
-        today=datetime.now(),
-        timedelta=timedelta
-    )
-    return html_content
 
 # ─────────────────────────────────────────────────────────────────────
-# 4) Convert the rendered HTML into a PDF via WeasyPrint
+# 3) Render
 # ─────────────────────────────────────────────────────────────────────
-def generate_pdf_from_html(html_string, output_path):
+
+def render_html(env: Environment, template_name: str, items: List[Dict],
+                today: Optional[datetime] = None) -> str:
+    """Render the template. `today` exists so a rebuild can be dated on purpose."""
+    template = env.get_template(template_name)
+    return template.render(
+        items=items,
+        today=today or datetime.now(),
+        ordered_categories=ORDEM_CATEGORIAS,
+        timedelta=timedelta,
+    )
+
+
+def generate_pdf_from_html(html_string: str, output_path: str) -> None:
     """
-    Uses WeasyPrint to write the given HTML string to a PDF file.
-    We pass base_url=CONFIGS_DIR so that relative paths (e.g. your logo.png)
-    resolve against configs/ where we'll place the image.
+    Write the HTML to a PDF.
+
+    base_url=CONFIGS_DIR is what makes the logo's relative path resolve.
     """
     HTML(string=html_string, base_url=CONFIGS_DIR).write_pdf(output_path)
 
-# ─────────────────────────────────────────────────────────────────────
-# 5) Main orchestration
-# ─────────────────────────────────────────────────────────────────────
-def build_pdf():
-    """
-    Main function to generate PDF from clippings.json.
-    """
-    # Load data (with unique IDs for anchors)
-    clippings = load_clippings(JSON_PATH)
 
-    # Set up Jinja2
+# ─────────────────────────────────────────────────────────────────────
+# 4) Orchestration
+# ─────────────────────────────────────────────────────────────────────
+
+def build_pdf(json_path: str = JSON_PATH, output_pdf: str = OUTPUT_PDF) -> str:
+    """Build the PDF from output/clippings.json and archive what was built."""
+    clippings = load_clippings(json_path)
+
     env = init_jinja2_environment(CONFIGS_DIR)
 
-    # Render HTML with our "clipping_template.html" template
-    html_str = render_html(env, "clipping_template.html", clippings)
+    # The header dates the edition, not the build. Rebuilding Friday's clipping on
+    # Monday used to print "Week 14 Sep – 21 Sep" over Friday's news.
+    fechamento = data_da_edicao()
+    if fechamento is None:
+        print("⚠️  Não sei quando esta edição foi fechada (output/edicao_atual.json "
+              "não existe); o cabeçalho vai sair com a data de hoje.")
+    html_str = render_html(env, "clipping_template.html", clippings, today=fechamento)
+    generate_pdf_from_html(html_str, output_pdf)
 
-    # Convert to PDF (this will embed the header on every page)
-    generate_pdf_from_html(html_str, OUTPUT_PDF)
+    com_metricas = sum(1 for item in clippings if (item.get("ficha") or {}).get("ratios"))
+    com_caixa = sum(1 for item in clippings if item.get("fichas_empresa"))
+    print(f"⚙️  PDF gerado em {output_pdf}")
+    print(f"   {len(clippings)} notícias · {com_metricas} com caixa de métricas · "
+          f"{com_caixa} com ficha de empresa")
 
-    print(f"⚙️  PDF generated at: {OUTPUT_PDF}")
-    return OUTPUT_PDF
+    # Archive the version that was actually built — this is the one that gets
+    # sent, corrections and all, which is not what is on disk.
+    archive_final(json_path, output_pdf, items=clippings)
+
+    return output_pdf
+
 
 if __name__ == "__main__":
     build_pdf()
