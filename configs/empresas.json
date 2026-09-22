@@ -1,0 +1,393 @@
+{
+  "_leia_me": [
+    "Quem ganha caixa de apresentação no clipping e o que ela diz.",
+    "",
+    "  conhecidas  — o leitor (investidor de infraestrutura) já sabe quem é.",
+    "                NÃO gera caixa. Só precisa dos apelidos, para o texto ser",
+    "                reconhecido quando a imprensa escreve 'AWS' em vez de 'Amazon'.",
+    "",
+    "  controle    — cadeia societária verificada em fonte primária. Serve de",
+    "                referência; não vira caixa sozinha.",
+    "",
+    "  perfis      — empresas pouco conhecidas do leitor. A 'ficha' é o texto que",
+    "                sai embaixo do resumo, uma vez por edição, na primeira aparição.",
+    "",
+    "  sem_dado_publico — empresas pesquisadas em que não há dado suficiente em",
+    "                fonte aberta. NÃO geram caixa e não devem ser pesquisadas de",
+    "                novo toda semana. Revisitar quando a data ficar velha.",
+    "",
+    "REGRA: campo que não tem fonte não aparece. Nunca se escreve 'porte não",
+    "divulgado' — o campo simplesmente some. Empresa sem nenhum dado confirmável",
+    "sai sem caixa nenhuma.",
+    "",
+    "Dados levantados e auditados em 22/09/2026: quatro pesquisadores em fonte",
+    "primária, quatro auditores reabrindo cada URL. O que os auditores derrubaram",
+    "está em propostas/2b-empresas-verificado.md e não entrou aqui."
+  ],
+  "conhecidas": {
+    "Amazon": [
+      "AWS",
+      "Amazon Web Services",
+      "Amazon AWS"
+    ],
+    "Microsoft": [
+      "Azure",
+      "Microsoft Azure",
+      "Azure AI Foundry"
+    ],
+    "Alphabet": [
+      "Google",
+      "Google Cloud",
+      "GCP"
+    ],
+    "Meta": [
+      "Facebook"
+    ],
+    "Oracle": [
+      "OCI",
+      "Oracle Cloud"
+    ],
+    "Apple": [],
+    "IBM": [],
+    "ByteDance": [
+      "TikTok"
+    ],
+    "Alibaba Cloud": [
+      "Alibaba"
+    ],
+    "Tencent Cloud": [
+      "Tencent"
+    ],
+    "Huawei": [
+      "Huawei Cloud"
+    ],
+    "Nvidia": [
+      "NVIDIA"
+    ],
+    "OpenAI": [],
+    "Anthropic": [],
+    "xAI": [],
+    "Salesforce": [],
+    "SAP": [],
+    "Ascenty": [],
+    "ODATA": [
+      "Odata"
+    ],
+    "Scala Data Centers": [
+      "Scala"
+    ],
+    "Elea Data Centers": [
+      "Elea",
+      "Elea Digital"
+    ],
+    "Digital Realty": [
+      "DLR"
+    ],
+    "NTT": [],
+    "CyrusOne": [],
+    "Vantage": [
+      "Vantage Data Centers"
+    ],
+    "EdgeConneX": [],
+    "Equinix": [],
+    "Iron Mountain": [],
+    "Eletrobras": [],
+    "Petrobras": [],
+    "Engie": [],
+    "Enel": [],
+    "Neoenergia": [
+      "Cosern",
+      "Companhia Energética do Rio Grande do Norte",
+      "Coelba",
+      "Celpe",
+      "Elektro"
+    ],
+    "CPFL": [],
+    "Cemig": [],
+    "Copel": [],
+    "EDP": [],
+    "Casa dos Ventos": [],
+    "Auren": [],
+    "Serena": [],
+    "Telefônica Brasil": [
+      "Vivo"
+    ],
+    "América Móvil": [
+      "Claro",
+      "Embratel"
+    ],
+    "TIM": [],
+    "Oi": [],
+    "V.tal": [
+      "Vtal",
+      "V.Tal"
+    ],
+    "Schneider Electric": [
+      "Schneider"
+    ],
+    "Vertiv": [],
+    "ABB": [],
+    "Siemens": [],
+    "Cisco": [],
+    "Dell": [],
+    "HPE": [],
+    "Supermicro": [],
+    "AMD": [],
+    "Intel": [],
+    "TSMC": [],
+    "Samsung": [],
+    "SK Hynix": [],
+    "Itaú": [
+      "Itaú Unibanco"
+    ],
+    "Bradesco": [],
+    "BTG Pactual": [
+      "BTG"
+    ],
+    "XP": [
+      "XP Inc.",
+      "XP Asset"
+    ],
+    "Brookfield": [
+      "Brookfield Infrastructure"
+    ],
+    "Blackstone": [],
+    "KKR": [],
+    "Actis": [],
+    "Pátria": [
+      "Patria",
+      "Pátria Investments"
+    ],
+    "Vinci": [],
+    "DigitalBridge": [
+      "DBRG"
+    ],
+    "GIC": [],
+    "CPPIB": [],
+    "Mubadala": [],
+    "IFC": [],
+    "BNDES": [],
+    "KINEA": [
+      "Kinea"
+    ],
+    "Morgan Stanley": [],
+    "Moody's": [
+      "Moody’s",
+      "Moodys"
+    ],
+    "SoftBank": [
+      "SoftBank Group",
+      "Softbank"
+    ],
+    "LG Electronics": [
+      "LG"
+    ],
+    "TotalEnergies": [],
+    "Serpro": [],
+    "Dataprev": [],
+    "Aligned Data Centers": [
+      "Aligned"
+    ],
+    "Voltalia": []
+  },
+  "controle": {
+    "Ascenty": {
+      "controlador": "Joint venture de controle compartilhado entre Digital Realty (NYSE: DLR, 49%) e Brookfield Infrastructure (49%)",
+      "observacao": "Não escrever 'controlada pela Digital Realty': a DLR desconsolidou a Ascenty justamente por não a controlar sozinha.",
+      "evidencia": "A",
+      "fonte": "Digital Realty, 10-K FY2019 e 10-Q de 30/06/2026 (SEC)",
+      "verificado_em": "2026-09-22"
+    },
+    "ODATA": {
+      "controlador": "Aligned Data Centers (Estados Unidos), desde 22/05/2023, comprada da Pátria Investments",
+      "evidencia": "A",
+      "fonte": "Release de conclusão da operação, Aligned Data Centers",
+      "verificado_em": "2026-09-22"
+    },
+    "Scala Data Centers": {
+      "controlador": "Fundos de infraestrutura digital geridos pelo DigitalBridge (NYSE: DBRG), que fundou a plataforma em 2020; percentuais não divulgados",
+      "evidencia": "A",
+      "fonte": "DigitalBridge, documentos societários e RI",
+      "verificado_em": "2026-09-22"
+    },
+    "Elea Data Centers": {
+      "controlador": "I Squared Capital (gestora americana de infraestrutura), controle indireto desde 02/06/2026; fundador Alessandro Lombardi segue como sócio minoritário e CEO",
+      "observacao": "Companhia aberta categoria B na CVM (código 2694-8), sem ações listadas. Receita líquida consolidada de R$ 220,4 mi em 2025.",
+      "evidencia": "A",
+      "fonte": "Fatos relevantes da companhia e cadastro CVM",
+      "verificado_em": "2026-09-22"
+    },
+    "V.tal": {
+      "controlador": "Fundos geridos pelo BTG Pactual",
+      "observacao": "Braço de data centers opera sob a marca Tecto. Receita líquida consolidada de R$ 7,05 bi em 2025.",
+      "evidencia": "B",
+      "fonte": "https://telesintese.com.br/v-tal-tem-prejuizo-de-r-1385-bilhoes-em-2025-devido-a-baixa-contabil/",
+      "verificado_em": "2026-09-22"
+    },
+    "Atlantic Data Centers": {
+      "controlador": "Subsidiária da pernambucana Um Telecom, que foi comprada integralmente pela V.tal",
+      "observacao": "Anúncio em 29/12/2025, aprovação do Cade sem restrições em 13/05/2026 (Despacho SG nº 604). O FECHAMENTO da operação não está confirmado em fonte aberta — não escrever que a V.tal já é dona.",
+      "evidencia": "B",
+      "fonte": "https://umtelecom.com.br/futuro-da-infraestrutura-digital-do-brasil-em-debate-no-recnplay/ ; https://telesintese.com.br/sg-do-cade-aprova-compra-de-um-telecom-e-atlantic-data-center-pela-v-tal/",
+      "verificado_em": "2026-09-22"
+    }
+  },
+  "perfis": {
+    "EVEO": {
+      "aliases": [
+        "EVEO S.A.",
+        "Eveo",
+        "EVEO Cloud"
+      ],
+      "ficha": "Empresa brasileira de servidores dedicados, nuvem privada e colocation, fundada em 1998, com data centers em Cotia e Osasco (SP), Curitiba, Fortaleza e Miami. ARR de R$ 100 milhões ao fim de 2025. Capital fechado; o FIP XP Infra V (XP Asset) contratou aporte de R$ 100 milhões, anunciado em dezembro de 2025, que lhe dará 31,85% do capital.",
+      "evidencia": "B",
+      "fonte": "https://www.eveo.com.br/sala-de-imprensa/apos-aporte-eveo-projeta-crescimento-de-60-em-2026/ ; https://blog.eveo.com.br/eveo-recebe-aporte-de-100-milhoes-da-xp-asset",
+      "verificado_em": "2026-09-22"
+    },
+    "Atlantic Data Centers": {
+      "aliases": [
+        "Atlantic",
+        "Atlantic DC",
+        "Atlantic Data Center"
+      ],
+      "ficha": "Operadora de data center neutro criada pela pernambucana Um Telecom; constrói o Recife1 no Parque Tecnológico de Pernambuco, com R$ 300 milhões em três fases e primeira etapa de mais de 150 racks e 1 MW de TI. A Um Telecom foi comprada pela V.tal, operação aprovada pelo Cade em maio de 2026.",
+      "evidencia": "B",
+      "fonte": "https://tiinside.com.br/15/01/2025/um-telecom-lanca-atlantic-data-centers-marca-da-sua-unidade-de-negocios-de-data-centers/ ; https://telesintese.com.br/sg-do-cade-aprova-compra-de-um-telecom-e-atlantic-data-center-pela-v-tal/",
+      "verificado_em": "2026-09-22"
+    },
+    "TD SYNNEX": {
+      "aliases": [
+        "TD Synnex",
+        "Synnex"
+      ],
+      "ficha": "Distribuidora americana de tecnologia (NYSE: SNX), com receita de US$ 62,5 bilhões no ano fiscal encerrado em 30/11/2025 e cerca de 24 mil funcionários próprios. Sem acionista controlador.",
+      "evidencia": "A",
+      "fonte": "https://ir.tdsynnex.com/news/news-details/2026/TD-SYNNEX-Reports-Record-Fiscal-2025-Fourth-Quarter-Results/default.aspx",
+      "verificado_em": "2026-09-22"
+    },
+    "Positivo Tecnologia": {
+      "aliases": [
+        "Positivo",
+        "Positivo Tecnologia S.A."
+      ],
+      "ficha": "Fabricante brasileira de computadores e servidores (B3: POSI3), com receita líquida consolidada de R$ 3,355 bilhões em 2025. Bloco de controle familiar vinculado por acordo de acionistas, somando cerca de 49,3% das ações ordinárias.",
+      "evidencia": "A",
+      "fonte": "https://ri.positivotecnologia.com.br/ ; DFP 2025 na CVM",
+      "verificado_em": "2026-09-22"
+    },
+    "AZ Quest": {
+      "aliases": [
+        "AZ Quest Investimentos",
+        "AZQuest"
+      ],
+      "ficha": "Gestora brasileira de recursos do grupo italiano Azimut, que comprou 60% da Quest Investimentos em 2015, com participação minoritária da XP. Capital fechado.",
+      "evidencia": "A",
+      "fonte": "https://azquest.com.br/quemsomos.php ; fato relevante da aquisição pela XP publicado pela própria gestora",
+      "verificado_em": "2026-09-22"
+    },
+    "Kuehne+Nagel": {
+      "aliases": [
+        "Kuehne + Nagel",
+        "Kuehne Nagel",
+        "Kuehne+Nagel International"
+      ],
+      "ficha": "Operadora logística suíça (SIX: KNIN), com receita líquida de CHF 24,5 bilhões e 85.407 funcionários ao fim de 2025. Controlada pela Kuehne Holding AG, que detém 55,4% dos direitos de voto.",
+      "evidencia": "A",
+      "fonte": "https://2025-annual-report.kuehne-nagel.com/annual-report/key-financial-data ; https://2025-annual-report.kuehne-nagel.com/annual-report/corporate-governance/group-structure-and-shareholders",
+      "verificado_em": "2026-09-22"
+    },
+    "Keel Infrastructure": {
+      "aliases": [
+        "Keel",
+        "Bitfarms",
+        "Bitfarms Ltd.",
+        "Keel Infrastructure Corp."
+      ],
+      "ficha": "Ex-Bitfarms, desenvolve data centers e infraestrutura de energia para IA e computação de alto desempenho na América do Norte (Nasdaq e TSX: KEEL), com receita de US$ 229 milhões em 2025. Rebatizada e redomiciliada nos Estados Unidos em abril de 2026; sem controlador.",
+      "evidencia": "A",
+      "fonte": "https://investor.bitfarms.com/news-releases/news-release-details/bitfarms-officially-rebrands-keel-infrastructure-completes-us ; https://investor.bitfarms.com/news-releases/news-release-details/bitfarms-reports-fiscal-year-2025-results",
+      "verificado_em": "2026-09-22"
+    },
+    "Century Telecom": {
+      "aliases": [
+        "Century",
+        "Century Telecom Ltda"
+      ],
+      "ficha": "Provedora brasileira de telecomunicações e data center, com 249 colaboradores e capital fechado, sob controle majoritário de Fernando Antônio Barbosa.",
+      "evidencia": "A",
+      "fonte": "https://centurytelecom.com.br/sobre-a-century/",
+      "verificado_em": "2026-09-22"
+    },
+    "HostDime": {
+      "aliases": [
+        "HostDime Global",
+        "HostDime Brasil"
+      ],
+      "ficha": "Provedora americana de data center e infraestrutura gerenciada, com 223 funcionários e capital fechado, fundada em 2003 por Manny Vivar.",
+      "evidencia": "A",
+      "fonte": "Press kit oficial da HostDime",
+      "verificado_em": "2026-09-22"
+    },
+    "NextStream": {
+      "aliases": [
+        "Digital DC Brasil"
+      ],
+      "ficha": "Plataforma de data centers da gestora britânica Actis, formada a partir de 11 data centers adquiridos da espanhola Nabiax.",
+      "evidencia": "A",
+      "fonte": "https://www.act.is/2023/03/28/actis-to-acquire-11-data-centres-in-the-americas/",
+      "verificado_em": "2026-09-22"
+    },
+    "EAF": {
+      "aliases": [
+        "Entidade Administradora da Faixa",
+        "Entidade Administradora da Faixa 3.5 GHz"
+      ],
+      "ficha": "Entidade privada sem fins lucrativos criada por Claro, TIM e Vivo para executar as obrigações do edital do leilão do 5G, sob supervisão da Anatel. Não opera data centers.",
+      "evidencia": "A",
+      "fonte": "https://tiinside.com.br/16/09/2026/eaf-estuda-data-center-publico-de-ia-para-o-governo-federal/",
+      "verificado_em": "2026-09-22",
+      "observacao": "Se a caixa não disser que a EAF não é operadora, o leitor investidor vai lê-la como player do setor. Projetos de data center que aparecem no noticiário são estudos de viabilidade, sem capex confirmado — não escrever 'EAF vai construir'."
+    }
+  },
+  "nao_empresas": {
+    "_leia_me": [
+      "Nomes que o extrator devolve como se fossem empresas e não são. Ficam aqui",
+      "para não voltarem toda semana na lista de quarentena, que é lida por gente.",
+      "Nada daqui sai no PDF.",
+      "",
+      "ReData é o caso que motivou o bloco: é um REGIME TRIBUTÁRIO, e a edição de",
+      "21/09 publicou 'A Redata anunciou a construção de um data center'."
+    ],
+    "ReData": "Regime tributário para data centers, não uma empresa",
+    "Redata": "Grafia alternativa do mesmo regime tributário",
+    "FGV": "Fundação de ensino e pesquisa, não um ator do setor",
+    "ABEEólica": "Associação Brasileira de Energia Eólica, entidade de classe",
+    "ABDC": "Associação Brasileira de Data Centers, entidade de classe",
+    "ABES": "Associação Brasileira das Empresas de Software, entidade de classe",
+    "Assespro": "Entidade de classe das empresas de tecnologia da informação",
+    "Associação Brasil Digital": "Entidade de classe",
+    "Brasscom": "Associação das empresas de tecnologia da informação e comunicação",
+    "CNI": "Confederação Nacional da Indústria",
+    "Conexis": "Conexis Brasil Digital, entidade de classe das operadoras de telecom",
+    "Data Center Coalition": "Associação setorial americana de data centers",
+    "Fecomercio SP": "Federação do Comércio do Estado de São Paulo",
+    "Firjan": "Federação das Indústrias do Estado do Rio de Janeiro",
+    "TelComp": "Entidade de classe de prestadoras de telecomunicações",
+    "Movimento Brasil Competitivo": "Organização sem fins lucrativos",
+    "MBC": "Sigla do Movimento Brasil Competitivo",
+    "UNCTAD": "Órgão da ONU para comércio e desenvolvimento",
+    "Idema": "Órgão ambiental do governo do Rio Grande do Norte",
+    "Instituto de Desenvolvimento Sustentável e Meio Ambiente do RN": "Nome por extenso do Idema"
+  },
+  "sem_dado_publico": {
+    "RT-One": {
+      "motivo": "Porte, ticker, controlador e nacionalidade da controladora não divulgados em nenhuma fonte aberta.",
+      "alerta": "TELETIME e Telesíntese escreveram que a rodada de R$ 15 bilhões 'foi liderada pela Hitachi Energy'. O release da própria Hitachi Energy (12/01/2026) descreve apenas colaboração de fornecimento — sistemas elétricos, subestações e equipe de engenharia — e NÃO menciona aporte de capital nem valor. Não repetir que a Hitachi investiu.",
+      "verificado_em": "2026-09-22"
+    },
+    "Claranet Brasil": {
+      "motivo": "A única receita do grupo em fonte aberta (GBP 506,8 milhões) é do exercício encerrado em 30/06/2024, e a empresa vendeu a operação de Portugal no exercício seguinte, de modo que o número provavelmente superestima o porte atual. Não há receita do exercício encerrado em 30/06/2025 em fonte aberta, nem receita da operação brasileira isolada.",
+      "verificado_em": "2026-09-22"
+    }
+  }
+}
