@@ -58,6 +58,14 @@ configs/clipping_template.html
 # Output/Generated files
 output/*.pdf
 output/*.json
+# Edições arquivadas: ficam fora do git enquanto o repo for público.
+# Quando virar privado, vale reconsiderar commitar só os .json (pequenos e
+# valiosos como conjunto de teste), nunca os PDFs com o logo do cliente.
+output/archive/
+# Cache por etapa: sempre reconstituível rodando o pipeline.
+output/cache/
+# Trava de execução: guarda o pid de quem está rodando, só faz sentido na máquina.
+output/execucao.lock
 *.log
 
 # Jupyter Notebook

@@ -1,0 +1,30 @@
+{
+  "_leia_me": [
+    "Qual modelo da OpenAI cada etapa usa. Um lugar só, para trocar sem caçar",
+    "string espalhada por cinco arquivos.",
+    "",
+    "A decisão Q11 (DECISOES.md) separou as etapas em dois níveis:",
+    "  econômico — triagem por título, que só descarta lixo óbvio;",
+    "  médio     — resumo, ficha, reclassificação e confirmação de duplicatas,",
+    "              onde o erro do modelo chega ao leitor.",
+    "",
+    "O ID do nível médio foi decidido por medição em 22 set 2026, nas 56 matérias",
+    "reais da primeira execução da versão 2: para a CONFIRMAÇÃO DE DUPLICATAS,",
+    "gpt-4o-mini fundia Califórnia com Rio Grande do Norte e TD SYNNEX com Ascenty,",
+    "removendo 8 notícias que não eram duplicatas. O gpt-4o acerta todos os pares.",
+    "",
+    "É uma chamada por edição, então o custo é desprezível. As demais etapas seguem",
+    "no gpt-4o-mini: são por matéria, e nelas o mini foi medido e não erra — o",
+    "resumo, em três repetições, cita 140 números legítimos e inventa zero.",
+    "",
+    "Trocar um modelo muda a impressão digital da etapa e invalida o cache dela,",
+    "de propósito: resumo feito por outro modelo não é o mesmo resumo."
+  ],
+
+  "triagem": "gpt-4o-mini",
+  "resumo": "gpt-4o-mini",
+  "ficha": "gpt-4o-mini",
+  "reclassificacao": "gpt-4o-mini",
+  "dedup": "gpt-4o",
+  "embedding": "text-embedding-3-small"
+}

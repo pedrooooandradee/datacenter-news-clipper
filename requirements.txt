@@ -4,6 +4,12 @@ langchain-openai>=0.0.5
 langchain-core>=0.1.0
 feedparser>=6.0.0
 selenium>=4.0.0
+trafilatura>=2.2.0
+# docling: não é mais importado por nenhum código do pipeline desde que o
+# scraper passou a usar trafilatura (22 set 2026). Mantido só porque
+# tests/test_scraper.ipynb ainda o referencia. Removê-lo tira junto torch,
+# torchvision, transformers e accelerate — ver DECISOES.md.
 docling>=0.1.0
 python-dotenv>=1.0.1
 python-dateutil>=2.8.0
+webdriver-manager>=4.0.0
