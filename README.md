@@ -133,6 +133,19 @@ python -m venv venv
 
 **What just happened?** You created a folder called `venv` that will store all the project's Python dependencies.
 
+> **⚠️ On Pedro's Mac, this exact command produces a broken project.**
+> There is no Homebrew on that machine, so Step 1 never happened there. The
+> libraries WeasyPrint needs (`libpango`, `libcairo`) come from a dedicated conda
+> environment instead, and the venv has to be created from *its* Python:
+>
+> ```bash
+> /Users/pedroandrade/.clipping247-python/bin/python3 -m venv venv
+> ```
+>
+> A venv built with the `python3` on the PATH there installs WeasyPrint fine and
+> then fails at import with `cannot load library 'libpango-1.0-0'`. Either route
+> works; mixing them does not.
+
 ### Activate the Virtual Environment
 
 From your project folder, run:
@@ -255,7 +268,11 @@ Generated PDF clipping at output/clippings_output.pdf
 
 ## Edit Your Report (Optional)
 
-If you want to manually add or remove articles:
+> **Edits made directly in `output/clippings.json` are lost on the next run.**
+> The durable place for them is `configs/overrides.json`, which is applied over
+> the pipeline's output every time the PDF is built. See `LEIA-ME.md` for the
+> blocks and their format. The instructions below still work for a one-off
+> rebuild you are about to send and never repeat.
 
 ### Remove Articles
 
@@ -278,11 +295,13 @@ Use ChatGPT with this prompt:
 "summary": "Detailed summary of the news piece in Portuguese. ~100 words, focusing on actual facts, happenings, decisions, numbers, not opinions."
 }
 
-Category options:
-- clientes (client news)
-- competidores (competitor news) 
-- mercado (market news)
-- tecnologia (technology news)
+Category options (EXACTLY these five, lowercase — anything else and the
+article is silently missing from the PDF):
+- clientes (cloud providers / clients)
+- competidores (competing operators)
+- governo (regulation and policy)
+- inovação (technology and infrastructure advances)
+- outros (everything else that still matters)
 
 Create JSON for this article: [PASTE ARTICLE URL/TEXT HERE]"
 ```
