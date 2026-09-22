@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ──────────────────────────────────────────────────────────────
+       PAGE SETUP: A4 with top margin for header
+       ────────────────────────────────────────────────────────────── */
+    @page {
+      margin: 4cm 2cm 2cm 2cm; /* top right bottom left */
+      size: A4;
+
+      /* ─── RUNNING HEADER ─── */
+      @top-left {
+        content: element(logo);
+        vertical-align: middle;
+      }
+      
+      @top-right {
+        content: element(headerText);
+        vertical-align: middle;
+      }
+
+      /* ─── RUNNING FOOTER ─── */
+      @bottom-left {
+        content: element(currentSection);
+        font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+        font-size: 9pt;
+        color: #555;
+      }
+      
+      @bottom-right {
+        content: counter(page);
+        font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+        font-size: 9pt;
+        color: #555;
+      }
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      padding-top: 0cm; /* Reduced to compensate for increased page margin */
+      font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;  /* Increased from 1.4 */
+      color: #000;
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       RUNNING ELEMENTS: These are removed from normal flow and 
+       appear in the page margins on every page
+       ────────────────────────────────────────────────────────────── */
+    .running-logo {
+      position: running(logo);
+      display: block;
+    }
+    
+    .running-logo img {
+      max-height: 2.5cm;
+      display: block;
+    }
+    
+    .running-header-text {
+      position: running(headerText);
+      display: block;
+      text-align: right;
+      font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+      color: #000;
+      line-height: 1.2;
+    }
+    
+    .running-header-text .title {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 0.2cm;
+    }
+    
+    .running-header-text .line1 {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 0.2cm;
+    }
+    
+    .running-header-text .line2 {
+      font-size: 11pt;
+      font-weight: normal;
+      margin: 0;
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       RUNNING FOOTER SECTION NAME
+       ────────────────────────────────────────────────────────────── */
+    .running-section-name {
+      position: running(currentSection);
+      display: block;
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       INDEX / TABLE OF CONTENTS (alone on page 1)
+       ────────────────────────────────────────────────────────────── */
+    .toc {
+      margin-top: 0;
+      margin-bottom: 1.5em;
+      page-break-after: always; /* force next content onto page 2+ */
+    }
+    .toc .toc-title {
+      font-weight: bold;
+      font-size: 16pt;
+      margin-bottom: 0.5em;
+    }
+    .toc .toc-category {
+      font-weight: 600;
+      font-size: 12pt;
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+      color: #333;
+    }
+    .toc .toc-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 10pt;
+      margin-bottom: 0.5em;  /* Increased from 0.3em */
+      margin-left: 1em;
+    }
+    .toc .toc-entry a {
+      color: #000;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .toc .page-number {
+      font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+    }
+    .toc .page-number::before {
+      content: leader('.') target-counter(attr(data-target), page);
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       CATEGORY SECTIONS
+       ────────────────────────────────────────────────────────────── */
+    .category-section {
+      margin-bottom: 2em;
+      page-break-before: always;  /* Force section to start on new page */
+    }
+    .category-section .category-title {
+      font-weight: 600;
+      font-size: 14pt;
+      margin-bottom: 1em;
+      color: #333;
+      border-bottom: 2px solid #333;
+      padding-bottom: 0.3em;
+    }
+    .category-section .empty-message {
+      font-style: italic;
+      color: #666;
+      margin: 2em 0;
+      text-align: center;
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       EACH CLIPPING: title, meta, summary, and a bottom separator
+       ────────────────────────────────────────────────────────────── */
+    .clipping {
+      padding-bottom: 1em;  /* Increased from 0.5em */
+      margin-bottom: 2em;  /* Increased from 1.5em */
+      border-bottom: 1px solid #333;
+      page-break-inside: avoid;
+    }
+    .clipping .title {
+      font-weight: bold;
+      font-size: 12pt;
+      margin-bottom: 0.4em;  /* Increased from 0.2em */
+    }
+    .clipping .title mark,
+    mark {
+      background-color: #fec103 !important;
+      padding: 0.1em 0.2em;
+    }
+    .clipping .title a {
+      color: #0066cc;
+      text-decoration: underline;
+    }
+    .clipping .meta {
+      font-size: 9pt;
+      color: #555;
+      margin-bottom: 0.6em;  /* Increased from 0.4em */
+    }
+    .clipping .summary {
+      font-size: 10pt;
+      line-height: 1.5;  /* Increased from 1.3 */
+      color: #000;
+      text-align: justify;
+    }
+    .clipping .also-covered {
+      font-size: 8.5pt;
+      color: #555;
+      margin-top: 3px;
+      font-style: italic;
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       METRICS: ratios computed from the article's own figures.
+       Both inputs are shown so the reader can check the division
+       against the paragraph above, which is the rule that allows
+       the number to be printed at all.
+       ────────────────────────────────────────────────────────────── */
+    .clipping .metrics {
+      margin-top: 0.6em;
+      padding: 0.4em 0.6em;
+      border-left: 3px solid #fec103;
+      background-color: #fcfaf3;
+      font-size: 9pt;
+      line-height: 1.45;
+    }
+    .clipping .metrics .metric-line {
+      margin: 0;
+    }
+    .clipping .metrics .metric-label {
+      font-weight: 600;
+      color: #7a5d00;
+      margin-right: 0.35em;
+    }
+    .clipping .metrics .reported .metric-label {
+      color: #555;
+      font-weight: 500;
+    }
+    .clipping .metrics .metric-note {
+      color: #666;
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       COMPANY BOX: who this company is, once per edition, at its
+       first appearance. Only for companies the reader is not
+       expected to know.
+       ────────────────────────────────────────────────────────────── */
+    .clipping .company-box {
+      margin-top: 0.6em;
+      padding: 0.4em 0.6em;
+      border-left: 3px solid #bbb;
+      background-color: #f6f6f6;
+      font-size: 9pt;
+      line-height: 1.45;
+      color: #222;
+    }
+    .clipping .company-box .company-name {
+      font-weight: 600;
+    }
+    p, .clipping {
+      orphans: 2;
+      widows: 2;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ──────────────────────────────────────────────────────────────
+       RUNNING ELEMENTS (these appear on every page in the margins)
+       ────────────────────────────────────────────────────────────── -->
+  <div class="running-logo">
+    <img src="247.original.jpg" alt="Twenty Four Seven Data Centers Logo">
+  </div>
+
+  <div class="running-header-text">
+    <div class="title">Data Center News</div>
+    <div class="line1">Week {{ (today - timedelta(days=7)).strftime('%d %b %Y') }} – {{ today.strftime('%d %b %Y') }}</div>
+    <div class="line2">Fechamento {{ today.strftime('%d %b') }} – {{ today.strftime('%H:%M') }}</div>
+  </div>
+  <!-- ────────────────────────────────────────────────────────────── -->
+
+
+  <!-- ─────────── INDEX / TABLE OF CONTENTS ─────────── -->
+  <div class="running-section-name"></div>  <!-- Empty section name for TOC page -->
+  <div class="toc">
+    <div class="toc-title">ÍNDICE</div>
+    {% set categories = {} %}
+    {% for item in items %}
+      {% if item.category not in categories %}
+        {% set _ = categories.update({item.category: []}) %}
+      {% endif %}
+      {% set _ = categories[item.category].append(item) %}
+    {% endfor %}
+    
+    {% if ordered_categories is not defined %}
+      {% set ordered_categories = ['clientes', 'competidores', 'governo', 'inovação', 'outros'] %}
+    {% endif %}
+    {% for category in ordered_categories %}
+      <div class="toc-category{% if category == 'outros' %} outros-padding{% endif %}">{{ category|upper }}</div>
+      {% for item in categories.get(category, []) %}
+        <div class="toc-entry">
+          <a href="#{{ item.id }}">
+            {% if item.get('highlight', False) %}
+              <mark>{{ item.title|truncate(80, False, '[...]') }}</mark>
+            {% else %}
+              {{ item.title|truncate(80, False, '[...]') }}
+            {% endif %}
+          </a>
+          <span class="page-number" data-target="#{{ item.id }}"></span>
+        </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+
+
+  <!-- ─────────── CLIPPINGS (start on page 2) ─────────── -->
+  {% for category in ordered_categories %}
+    <div class="category-section">
+      <div class="running-section-name">{{ category|upper }}</div>
+      <div class="category-title">{{ category|upper }}</div>
+      {% set items = categories.get(category, []) %}
+      {% if items %}
+        {% for item in items %}
+          <div class="clipping" id="{{ item.id }}">
+            <div class="title">
+              <a href="{{ item.url }}">{{ item.title }}</a>
+            </div>
+            <div class="meta">
+              {{ item.data_exibida or 'data não confirmada' }} – {{ item.source }}
+            </div>
+            <div class="summary">
+              {{ item.summary }}
+            </div>
+            {% if item.tambem_noticiado_por %}
+            <div class="also-covered">
+              Também noticiado por: {{ item.tambem_noticiado_por|join(', ') }}
+            </div>
+            {% endif %}
+            {% set ficha = item.ficha or {} %}
+            {% if ficha.get('ratios') or ficha.get('kpis_reportados') %}
+            <div class="metrics">
+              {% for r in ficha.get('ratios', []) %}
+              <div class="metric-line">
+                <span class="metric-label">Métrica</span>{{ r.numerador }} ÷ {{ r.denominador }} = <strong>{{ r.texto }}</strong> <span class="metric-note">({{ r.fase }})</span>
+              </div>
+              {% endfor %}
+              {% for k in ficha.get('kpis_reportados', []) %}
+              <div class="metric-line reported">
+                <span class="metric-label">Reportado</span>{{ k.nome }}: <strong>{{ k.texto }}</strong>{% if k.escopo_rotulo %} <span class="metric-note">({{ k.escopo_rotulo }})</span>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% for empresa in item.fichas_empresa or [] %}
+            <div class="company-box">
+              <span class="company-name">{{ empresa.nome }}</span> — {{ empresa.texto }}
+            </div>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-message">
+          Não encontramos notícias relevantes de <strong>{{ category }}</strong> na última semana.
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+</body>
+</html>

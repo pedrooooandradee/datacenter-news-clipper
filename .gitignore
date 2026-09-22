@@ -51,16 +51,17 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Project specific files (user requested)
+# A logo é ativo de marca do cliente e não vai para um repositório público.
+# O PDF é gerado sem ela: o WeasyPrint avisa que a imagem falta e segue. Quem
+# for enviar a edição pede o arquivo a quem tem, e põe em configs/.
 configs/247.original.jpg
-configs/clipping_template.html
 
 # Output/Generated files
 output/*.pdf
 output/*.json
-# Edições arquivadas: ficam fora do git enquanto o repo for público.
-# Quando virar privado, vale reconsiderar commitar só os .json (pequenos e
-# valiosos como conjunto de teste), nunca os PDFs com o logo do cliente.
+# Edições arquivadas: ficam fora do git. Guardam o texto integral das matérias
+# (direito autoral de terceiros) e as edições já corrigidas à mão, que são
+# trabalho para o cliente. O valor delas é local, como conjunto de teste.
 output/archive/
 # Cache por etapa: sempre reconstituível rodando o pipeline.
 output/cache/

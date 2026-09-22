@@ -198,9 +198,15 @@ OPENAI_API_KEY=your_actual_api_key_here
 
 ---
 
-## Step 6: Add Required Files
+## Step 6: Add the Client's Logo (optional)
 
-You should receive other miscallenous configuration files, which you should place in the `configs/` folder.
+Everything the program needs to run is in the repository. One file is not: the
+client's logo, `configs/247.original.jpg`. It is a brand asset and this
+repository is public, so it is deliberately left out.
+
+**The program runs without it.** The PDF is generated complete, without the image
+in the header, and the terminal says the file is missing. Ask whoever already has
+it for a copy and drop it in `configs/` when you need the branded edition.
 
 ---
 

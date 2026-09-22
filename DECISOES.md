@@ -5,8 +5,8 @@ Este arquivo é a fonte de verdade do desenho. Mudou de ideia? Edite aqui primei
 
 ## Contexto
 
-Clipping semanal de notícias de data center para os executivos da Arch Capital,
-veículo 247. Público: investidores de infraestrutura, não leitores de tecnologia.
+Clipping semanal de notícias de data center para os executivos e o conselho da
+247. Público: investidores de infraestrutura, não leitores de tecnologia.
 O documento circula por e-mail. Toda decisão abaixo parte disso.
 
 ## Por que a versão 2

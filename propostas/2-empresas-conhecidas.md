@@ -5,7 +5,7 @@ Para aprovar item a item.
 ## O critério, antes da lista
 
 "Conhecida" é **conhecida do seu leitor**: executivo de private equity de
-infraestrutura (Arch, KINEA, Just Climate) e conselho da 247. Não é "famosa no
+infraestrutura e conselho da 247. Não é "famosa no
 mundo da tecnologia". Isso muda os dois lados:
 
 - **Entram como conhecidas** empresas que um leitor de tecnologia talvez não
@@ -118,7 +118,7 @@ Estas eu não consigo decidir por você — dependem de quem lê:
    center. Pus como conhecida. Um investidor de infra digital conhece; um
    generalista talvez não.
 2. **TD SYNNEX** — receita enorme, invisível para o leitor. Pus como desconhecida.
-3. **AZ Quest** — gestora brasileira. KINEA e Itaú conhecem; Just Climate (UK)
-   provavelmente não. O leitor é misto.
+3. **AZ Quest** — gestora brasileira. Um gestor local conhece; um investidor
+   estrangeiro provavelmente não. O leitor é misto.
 4. **Kuehne+Nagel** — top-5 global de logística. Conhecida em infraestrutura,
    não em data center. Pus como desconhecida.

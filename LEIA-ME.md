@@ -27,6 +27,15 @@ pip install -r requirements.txt
 Em outra máquina, o caminho do Homebrew descrito no `README.md` também funciona —
 o que não funciona é misturar os dois.
 
+### A logo da 247
+
+O repositório é público, e a logo é ativo de marca do cliente — por isso ela
+**não** está no git. O programa roda sem ela: o PDF sai completo, só sem a
+imagem no cabeçalho, e o terminal avisa que o arquivo falta.
+
+Para gerar a edição que vai ser enviada, peça o `247.original.jpg` a quem já
+tem e ponha em `configs/`. Uma vez só; ele fica lá.
+
 ### O arquivo `.env`
 
 Guarda a chave da OpenAI, ligada a um cartão de crédito. É **confidencial**: não
