@@ -121,7 +121,13 @@ def is_listed(source: str) -> bool:
 
 
 def can_win_group(source: str) -> bool:
-    """Whether this outlet may be the surviving article of a duplicate group."""
+    """
+    Whether this outlet may be the surviving article of a duplicate group.
+
+    This is the one place the rule lives. Until 23 set 2026 deduplicator.py
+    carried its own copy, written inline, and this function was called only by
+    the tests — so the tests were guarding a rule the program did not run.
+    """
     return tier_of(source) <= 2
 
 

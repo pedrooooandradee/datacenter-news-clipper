@@ -77,6 +77,20 @@ etapa `scrape` falha em todas as matérias.
 Guarda a chave da OpenAI, ligada a um cartão de crédito. É **confidencial**: não
 abra para mostrar a ninguém, não envie e não apague.
 
+O arquivo não vem no repositório — ele nunca entra no git. O que vem é o molde:
+
+```bash
+cp .env.example .env
+```
+
+**Cada pessoa cria a sua chave**, na conta da OpenAI da empresa, em
+platform.openai.com > API keys. Não peça a de outra pessoa emprestada: quando
+ela sai, a chave morre junto, e enquanto isso o consumo dela aparece como seu.
+
+Se uma chave sua já apareceu em algum lugar que não devia — num print, num
+arquivo dentro do iCloud, numa mensagem — revogue e crie outra. Revogar é um
+clique e não quebra nada além do `.env` de quem a usava.
+
 ---
 
 ## Os comandos
@@ -133,8 +147,8 @@ verdade se estiver no `configs/overrides.json` (abaixo).
 python -m unittest discover -s tests
 ```
 
-De graça, um segundo, sem internet. São 66 testes das regras que decidem o que o
-investidor lê. Rode depois de mexer em qualquer configuração. **Se algum falhar,
+De graça, um segundo, sem internet. São os testes das regras que decidem o que o
+investidor lê — o comando diz quantos são. Rode depois de mexer em qualquer configuração. **Se algum falhar,
 não envie o clipping.**
 
 ---

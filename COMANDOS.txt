@@ -40,7 +40,7 @@ CONFERIR QUE O PROGRAMA CONTINUA CERTO (de graça, 1 segundo, sem internet)
 Depois de mexer em qualquer arquivo de configuração ou de código:
 python -m unittest discover -s tests
 
-São 66 testes das regras que decidem o que o investidor lê: qual número pode ser
+São os testes das regras que decidem o que o investidor lê: qual número pode ser
 publicado, qual veículo vence uma duplicata, qual empresa ganha caixa e o que
 cada correção manual faz. Se algum falhar, NÃO envie o clipping.
 

@@ -41,11 +41,11 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 try:
-    from services.utils.fontes import tier_of
+    from services.utils.fontes import tier_of, can_win_group
     from services.utils.projeto import modelo
     from services.ficha import completude as completude_da_ficha
 except ImportError:
-    from utils.fontes import tier_of
+    from utils.fontes import tier_of, can_win_group
     from utils.projeto import modelo
     from ficha import completude as completude_da_ficha
 
@@ -417,7 +417,13 @@ def select_survivor(items: List[Dict], group: List[int]) -> int:
     the weak measure that would have picked the Exame piece over BNamericas in the
     EVEO cluster; it must never beat a stronger outlet.
     """
-    eligible = [i for i in group if tier_of(items[i].get("source", "")) <= 2]
+    # can_win_group, não `tier_of(...) <= 2` escrito à mão. A regra existia nos
+    # dois lugares: a função, que os testes cobrem, e esta cópia, que era a que
+    # rodava. Apertar o critério na função deixava os 66 testes verdes e o
+    # programa inalterado; apertá-lo aqui mudava o programa e deixava o teste da
+    # função verde do mesmo jeito. Teste que passa sobre código que ninguém
+    # executa vale menos que teste nenhum, porque dá confiança falsa.
+    eligible = [i for i in group if can_win_group(items[i].get("source", ""))]
     if not eligible:
         eligible = list(group)
 

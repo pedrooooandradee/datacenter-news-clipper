@@ -36,7 +36,10 @@ venv.bak/
 .venv/
 
 # IDEs
-.vscode/
+# .vscode/ entra no repositório de propósito: ele aponta o interpretador para
+# ./venv/bin/python e faz todo terminal novo do Cursor já abrir com o venv
+# ativo. Sem isso, o tropeço mais comum de quem começa é rodar o programa fora
+# do venv e receber "No module named ...". Não tem caminho absoluto dentro.
 .idea/
 *.swp
 *.swo

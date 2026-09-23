@@ -28,14 +28,3 @@ def format_datetime_br(dt: datetime) -> str:
     day = br_dt.day
     month_abbr = PT_MONTHS[br_dt.month]
     return f"{day:02d} {month_abbr}"
-
-if __name__ == "__main__":
-    # Test with naive datetime
-    naive_dt = datetime(2024, 1, 1, 12, 0, 0)
-    print(f"Naive datetime: {naive_dt}")
-    print(f"Formatted (BR): {format_datetime_br(naive_dt)}")
-    
-    # Test with UTC datetime
-    utc_dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-    print(f"UTC datetime: {utc_dt}")
-    print(f"Formatted (BR): {format_datetime_br(utc_dt)}")

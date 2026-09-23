@@ -314,40 +314,20 @@ things from the terminal.
 |---|---|---|
 | `python main.py` | The full edition: search, classify, scrape, summarise, extract, deduplicate, PDF | **Money and 10–30 minutes.** Only with authorisation |
 | `python services/pdf_builder.py` | Rebuilds only the PDF from what is already in `output/` | Free, seconds |
-| `python -m unittest discover -s tests` | 66 tests of the rules that decide what the investor reads | Free, no network |
+| `python -m unittest discover -s tests` | The tests of the rules that decide what the investor reads | Free, no network |
 
 A full run cost US$ 0.20 and took 13 minutes on the 22 Sep 2026 edition
 (56 articles).
 
-## Redoing one stage without paying for the ones before it
+## Everything else
 
-The pipeline caches each stage. Stages, in order:
+Redoing a single stage without paying for the ones before it, correcting an
+edition so the correction survives the next run, what each warning means: all of
+that is in **`LEIA-ME.md`**, and only there.
 
-```
-search · classify · scrape · summarize · ficha · dedup · pdf
-```
-
-```bash
-python main.py --from=summarize    # redo from the summary onwards
-python main.py --list-cache        # what is cached
-python main.py --clear-cache       # delete the cache and exit (runs nothing)
-```
-
-If the code behind a stage changed since its cache was written, the program says
-so out loud instead of serving you a stale result.
-
-## Correcting an edition
-
-**Do not edit `output/clippings.json` by hand.** It is overwritten on the next
-run, and the record of what the program gets wrong — the most valuable thing
-this process produces — is destroyed with it.
-
-Corrections go in `configs/overrides.json`, which is applied over the pipeline's
-output every time the PDF is built. Blocks: `removidas`, `categoria`, `resumo`,
-`highlight`, `fonte_nome`, `dedup`, `empresa`. The key is always the article's
-final URL. Then rebuild the PDF.
-
-`LEIA-ME.md` has the format of each block and the two traps.
+It used to be repeated here too. That is exactly how the number of tests came to
+be wrong in three documents at once — the same fact written four times drifts in
+three of them. One subject, one owner.
 
 ## Before you send
 
