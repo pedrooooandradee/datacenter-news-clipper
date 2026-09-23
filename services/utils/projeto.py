@@ -23,7 +23,6 @@ from typing import Dict
 UTILS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(UTILS_DIR))
 CONFIGS_DIR = os.path.join(PROJECT_ROOT, "configs")
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 MODELO_PADRAO = "gpt-4o-mini"
 EMBEDDING_PADRAO = "text-embedding-3-small"

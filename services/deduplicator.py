@@ -181,12 +181,26 @@ def confirm_groups(items: List[Dict], model: Optional[str] = None) -> List[List[
     if len(items) <= 1:
         return []
 
+    # How much of the summary the confirming model gets to read.
+    #
+    # This is a calibration, not a formatting choice. The whole two-stage design
+    # rests on the summary separating a duplicate from a neighbour on the same
+    # topic (EVEO 0.799 -> 0.899, MP Campinas 0.673 -> 0.819, common-topic pair
+    # 0.722 -> 0.667). Cutting it short moves this stage back towards stage one,
+    # which has already seen the title.
+    #
+    # Measured on the 22 set 2026 edition: median summary is 687 characters and
+    # 28 of 40 articles are longer than 600 — so in most cases the model judges
+    # on the first two thirds. Raising it buys precision and costs tokens;
+    # lowering it is moving the calibration, not saving money.
+    RESUMO_PARA_CONFIRMAR = 600
+
     payload = [
         {
             "id": i,
             "titulo": item.get("title", ""),
             "fonte": item.get("source", ""),
-            "resumo": (item.get("summary", "") or "")[:600],
+            "resumo": (item.get("summary", "") or "")[:RESUMO_PARA_CONFIRMAR],
         }
         for i, item in enumerate(items)
     ]
@@ -421,7 +435,7 @@ def select_survivor(items: List[Dict], group: List[int]) -> int:
 # Entry point
 # ─────────────────────────────────────────────────────────────────────
 
-def deduplicate_by_summary(items: List[Dict], confidence_threshold: float = 0.7) -> List[Dict]:
+def deduplicate_by_summary(items: List[Dict]) -> List[Dict]:
     """
     Remove duplicate coverage, keeping a record of what was merged.
 
@@ -429,6 +443,15 @@ def deduplicate_by_summary(items: List[Dict], confidence_threshold: float = 0.7)
     por: …" line in the PDF. Fourteen outlets covering the same sanction is
     information for the reader, not noise — and it makes the deduplication
     auditable instead of a black box.
+
+    There used to be a `confidence_threshold=0.7` parameter in this signature,
+    left over from the single-pass version. Nothing in the body read it and no
+    caller passed it, but it was the most inviting knob in the project: anyone
+    trying to make deduplication less aggressive would turn that 0.7 first, pay
+    for a full run, see nothing change, and conclude the stage is unpredictable.
+    The threshold that exists is TITLE_THRESHOLD, at the top of this file, and
+    it only decides which pairs are *shown* to the model. The merge itself is
+    the model's call, under CONFIRM_PROMPT.
     """
     if not items or len(items) <= 1:
         return items

@@ -1,4 +1,3 @@
-import os
 import json
 import unicodedata
 from datetime import datetime, timezone

@@ -34,7 +34,7 @@ saída crua do modelo, antes da edição manual):
 | Q13 | Classificação em dois passes: triagem barata no título (só descarta lixo óbvio) → re-classificação com o resumo define a categoria final |
 | Q22 | O cluster pré-scrape scrapeia os dois melhores por tier; a ficha decide entre eles |
 | Q6 | Cache por etapa, com `--from=<etapa>` para refazer sem repagar |
-| Q7 | Trabalho fora do iCloud (`~/dev/`), repo privado |
+| Q7 | Trabalho fora do iCloud (`~/dev/`); repo **público** (revisto em 23 set) |
 | Q23 | Continua específico da 247; sem camada de multi-cliente |
 
 ### Deduplicação
@@ -349,11 +349,15 @@ para o Anaconda) instala o WeasyPrint mas quebra no import, com
 `cannot load library 'libpango-1.0-0'`. O venv tem de ser criado assim:
 
 ```
-/Users/pedroandrade/.clipping247-python/bin/python3 -m venv venv
+conda create -p ~/.clipping247-python -c conda-forge python=3.12 pango cairo
+~/.clipping247-python/bin/python3 -m venv venv
 ```
 
-Isso precisa entrar no README na etapa 7, senão queima a próxima pessoa que
-montar o projeto — inclusive se isto virar a versão oficial da Elementum3.
+**Resolvido em 23 set 2026.** Por dois meses os quatro documentos deram só a
+segunda linha, com o caminho absoluto — uma receita que só funcionava nesta
+máquina e que, em qualquer outra, devolve "arquivo não encontrado". O
+`README.md` (Step 3), o `LEIA-ME.md` e o `COMANDOS.txt` agora dão os dois
+caminhos, Homebrew e conda, com o aviso de não misturar.
 
 ## Auditoria adversarial (22 set 2026)
 
@@ -504,7 +508,7 @@ funções que **nunca existiram neste repositório**, e importavam
 `utils.get_search_results` por um caminho que não resolve. Os três falhavam no
 import desde o primeiro commit: a bateria estava verde por ausência.
 
-No lugar, 56 testes das regras que decidem o que o investidor lê. Sem rede, sem
+No lugar, 66 testes das regras que decidem o que o investidor lê. Sem rede, sem
 API, sem pytest, em 0,3 segundo:
 
 ```
@@ -544,8 +548,21 @@ editorial, não fato.
 
 ## Pendências fora do código
 
-- Tornar o repo `github.com/Orimadros/datacenter-news-clipper` privado. Hoje é
-  público e `configs/classification_prompt.txt` + `configs/queries.json` expõem
-  o critério de triagem e a lista de concorrentes monitorados.
+- ~~Tornar o repo privado.~~ **Revisto em 23 set 2026: fica público**, por
+  decisão do Pedro. O argumento dele: não há informação confidencial no
+  scraping, e o próximo estagiário tem de conseguir baixar e rodar o pacote sem
+  pedir acesso a ninguém. A objeção original era o `queries.json` e o
+  `classification_prompt.txt` exporem o critério de triagem — medida depois, ela
+  não se sustenta: as 15 consultas são nomes óbvios de mercado (`ascenty`,
+  `equinix`, `odata`, `scala data centers`, os hyperscalers). O que era mesmo do
+  cliente eram 4 linhas em 2 arquivos, já generalizadas.
+
+  O que fica fora do repositório, de propósito: o `.env` com a chave da OpenAI,
+  a logo `configs/247.original.jpg` e o `output/archive/` (texto integral de
+  matérias de terceiros e as edições corrigidas à mão).
+
+- Transferir o repositório da conta pessoal `Orimadros` para uma conta da
+  Elementum3 ou do conselho da 247, antes de janeiro de 2027. Depois que o
+  acesso pessoal se perde, não há como transferir.
 - Pedir ao colega os PDFs das edições já enviadas (verdade de campo com
   julgamento humano dentro).

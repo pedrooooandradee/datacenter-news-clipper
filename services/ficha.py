@@ -470,6 +470,17 @@ def completude(item: Dict) -> int:
     ficha = item.get("ficha") or {}
     valores = ficha.get("valores") or []
     pontos = sum(1 for v in valores if v.get("escopo") in ESCOPOS_PARA_RATIO)
+
+    # Each filled metadata field weighs the same as each figure, and on real
+    # editions the metadata dominates: on 22 set 2026, 67 points of metadata
+    # against 24 of figures, with metadata outweighing figures in 28 of 40
+    # articles. An article with no figures but company, place, type and date
+    # scores 4 and beats one with three project figures and only the company.
+    # That is the opposite of the reason this function exists.
+    #
+    # It is survivable because select_survivor gates on tier first, so this only
+    # ranks outlets already eligible. Adding a fifth field to the tuple below
+    # changes which article of a duplicate group is published — silently.
     projeto = ficha.get("projeto") or {}
     pontos += sum(1 for chave in ("empresa", "local", "tipo", "previsao_operacao")
                   if str(projeto.get(chave, "")).strip())

@@ -26,7 +26,7 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -470,15 +470,41 @@ class JanelaDoFeed(unittest.TestCase):
         from email.utils import format_datetime
         entradas = []
         for n, horas in enumerate(idades_em_horas):
-            quando = datetime.now(timezone.utc) - __import__("datetime").timedelta(hours=horas)
+            quando = datetime.now(timezone.utc) - timedelta(hours=horas)
             entradas.append(self._Entrada(f"Noticia {n}", "Valor Econômico",
                                           format_datetime(quando)))
         return self._Feed(entradas)
 
     def test_dia_civil_nao_corta_a_manha_em_que_a_janela_abre(self):
-        """7 days and 9 hours old is still this week's news by civil day."""
+        """
+        An article published on the civil day the window opens is this week's
+        news, even though it is more than 7 * 24 hours old.
+
+        This used to be written as a fixed age of `7 * 24 + 9` hours, which made
+        the test depend on the hour it was run: the article only landed on the
+        opening civil day when the current UTC time was past 09:00. Run at
+        03:42 UTC it failed, and a suite that is green during office hours and
+        red at night is worse than no suite. The age is now derived from the
+        same boundary the code computes.
+        """
+        from email.utils import format_datetime
+        from datetime import time
+
+        abertura = (datetime.now(timezone.utc) - timedelta(days=7)).date()
+        # Right after midnight on the opening day: inside the window by civil
+        # day, and older than 7 * 24 hours at any hour this is run.
+        na_abertura = datetime.combine(abertura, time(0, 0), tzinfo=timezone.utc)
+
+        entradas = [
+            self._Entrada("Noticia 0", "Valor Econômico",
+                          format_datetime(datetime.now(timezone.utc) - timedelta(hours=1))),
+            self._Entrada("Noticia 1", "Valor Econômico",
+                          format_datetime(datetime.now(timezone.utc) - timedelta(hours=24))),
+            self._Entrada("Noticia 2", "Valor Econômico", format_datetime(na_abertura)),
+        ]
+
         resultados, descartados, _ = collect_search_results_from_rss(
-            self._feed([1, 24, 7 * 24 + 9]), 7)
+            self._Feed(entradas), 7)
         self.assertEqual(len(resultados), 3)
         self.assertEqual(descartados, [])
 

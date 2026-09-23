@@ -6,6 +6,24 @@
 
 ---
 
+## Which document do I read?
+
+Four documents, in reading order. **This one is setup only.** The day-to-day
+ones are in Portuguese, because whoever operates the clipping works in
+Portuguese.
+
+| Read | What it is | When |
+|---|---|---|
+| **`README.md`** (this file, English) | Installing the thing on a new machine | Once |
+| **`LEIA-ME.md`** (Portuguese) | How to operate it: every command, what to check before sending, how to correct an edition | Every week |
+| **`COMANDOS.txt`** (Portuguese) | The same commands with no explanation, to copy and paste | Every week |
+| **`DECISOES.md`** (Portuguese) | Why each rule is what it is, and what was measured to decide it | Before changing anything |
+
+`TODO.md` is the queue of what is still open. `propostas/` holds the written
+proposals behind some of the rules, kept for the record.
+
+---
+
 # 🔧 ONE-TIME SETUP
 
 **Do this section ONCE when you first get the project. You'll never need to repeat these steps.**
@@ -14,9 +32,10 @@
 
 1. [Install System Dependencies (macOS only) - CRITICAL STEP!](#step-1-install-system-dependencies-macos-only---critical-step)
 2. [Download the Project from Github](#step-2-download-the-project)
-3. [Set Up Python Virtual Environment](#step-3-set-up-python-virtual-environment)
+3. [Set Up Python Environment](#step-3-set-up-python-environment)
 4. [Install Python Dependencies](#step-4-install-python-dependencies)
-5. [Configure Environment .env File](#step-5-configure-environment-variables-optional)
+5. [Configure .env file](#step-5-configure-env-file)
+6. [Add the Client's Logo](#step-6-add-the-clients-logo-optional)
 
 ---
 
@@ -68,6 +87,16 @@ brew list | grep -E "(cairo|pango|gdk-pixbuf|libffi)"
 ```
 
 You should see all four names listed.
+
+### Install Google Chrome
+
+The scraping stage opens each article in a headless Chrome, driven by Selenium.
+**Chrome has to be installed on the machine** — `pip` does not install a
+browser, and `webdriver-manager` downloads only the driver, not Chrome itself.
+Without it, the `scrape` stage fails on every article.
+
+Download it from [google.com/chrome](https://www.google.com/chrome/) if it is
+not already there.
 
 ---
 
@@ -133,18 +162,24 @@ python -m venv venv
 
 **What just happened?** You created a folder called `venv` that will store all the project's Python dependencies.
 
-> **⚠️ On Pedro's Mac, this exact command produces a broken project.**
-> There is no Homebrew on that machine, so Step 1 never happened there. The
-> libraries WeasyPrint needs (`libpango`, `libcairo`) come from a dedicated conda
-> environment instead, and the venv has to be created from *its* Python:
+> **⚠️ If you skipped Step 1, or Homebrew is not an option on your machine,
+> this exact command produces a broken project.** It installs WeasyPrint fine
+> and then fails at import with `cannot load library 'libpango-1.0-0'`.
+>
+> The second route is conda, which brings `libpango` and `libcairo` itself. This
+> is how the machine the program was written on is set up — it has no Homebrew.
+> Create the environment once, then build the venv from *its* Python:
 >
 > ```bash
-> /Users/pedroandrade/.clipping247-python/bin/python3 -m venv venv
+> conda create -p ~/.clipping247-python -c conda-forge python=3.12 pango cairo
+> ~/.clipping247-python/bin/python3 -m venv venv
 > ```
 >
-> A venv built with the `python3` on the PATH there installs WeasyPrint fine and
-> then fails at import with `cannot load library 'libpango-1.0-0'`. Either route
-> works; mixing them does not.
+> Either route works. **Mixing them does not.**
+>
+> On Apple Silicon with the Homebrew route, if it still fails, Homebrew installs
+> into `/opt/homebrew/lib` and WeasyPrint does not look there. Add
+> `PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig` to your `.env` (Step 5).
 
 ### Activate the Virtual Environment
 
@@ -169,7 +204,12 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**What just happened?** Python downloaded and installed about 9 different libraries that this project needs to function.
+**What just happened?** Python downloaded the 11 libraries listed in
+`requirements.txt`, plus everything those depend on — about 160 packages and
+1.5 GB in `venv/`. That is normal, and `venv/` is not in the repository.
+
+**Which Python?** It is developed and run on **Python 3.12**. Anything from 3.10
+up should work; below that, it will not.
 
 **If you get errors here:** Make sure you completed Step 1 (system dependencies) and Step 3 (activated venv).
 
@@ -187,12 +227,22 @@ pip install -r requirements.txt
 
 ### Set Up Your .env File
 
-You should create a file named simply `.env` in the main project folder (yes, starting with a dot). Ask Leo for the API key uesd for the AI models employed in this project. You will write it to the `.env` file
+There is a template in the repository. Copy it and fill it in:
 
-The `.env` file should look like this:
+```bash
+cp .env.example .env
+```
+
+The only variable the program requires is `OPENAI_API_KEY`. Ask whoever runs the
+project at 247 for a key on the **company account** — not a personal one, which
+dies with the person who created it.
+
 ```
 OPENAI_API_KEY=your_actual_api_key_here
 ```
+
+`.env.example` also documents `PKG_CONFIG_PATH`, which only matters if the PDF
+fails to build (see Step 3).
 
 **CRITICAL:** Never share this file with anyone. It's connected to a credit card and costs money every time it's used.
 
@@ -204,9 +254,14 @@ Everything the program needs to run is in the repository. One file is not: the
 client's logo, `configs/247.original.jpg`. It is a brand asset and this
 repository is public, so it is deliberately left out.
 
-**The program runs without it.** The PDF is generated complete, without the image
-in the header, and the terminal says the file is missing. Ask whoever already has
-it for a copy and drop it in `configs/` when you need the branded edition.
+**The program runs without it.** The PDF is generated complete, without the
+image in the header, and the program prints a warning saying the file is
+missing. Ask whoever already has it for a copy and drop it in `configs/` when
+you need the branded edition.
+
+(Until 23 Sep 2026 that warning did not exist: WeasyPrint silently drops the
+image and returns a valid PDF, so a logo-less edition could be sent to the
+client unnoticed. The warning is now printed by the program itself.)
 
 ---
 
@@ -238,107 +293,120 @@ sudo chown -R $(whoami) $(brew --prefix)/*
 
 # 🎯 DAILY USAGE
 
-**Do this section EVERY TIME you want to generate a news report.**
+**The day-to-day guide is `LEIA-ME.md`, in Portuguese.** This section is the
+short version, and it is deliberately short: everything below has a longer
+explanation there, and duplicating it is how the two drift apart.
 
-**Assumption:** You're using an IDE like VS Code, Cursor, or PyCharm (which most people do). If you prefer Terminal, you'll need to activate the venv manually first.
+Every command is run from a terminal, with the venv active. In Cursor or VS
+Code: **Terminal → New Terminal**, then:
 
-## Generate a News Report
-
-1. **Open the project folder** in your IDE
-2. **Run the script** by clicking the "Run" button or pressing F5 on `main.py`
-
-**That's it!** The script is running, now just wait for the magic. You will know it's done when you see these messages:
-
-```
-Wrote clippings JSON to output/clippings.json
-Generated PDF clipping at output/clippings_output.pdf
+```bash
+source venv/bin/activate
 ```
 
-## What Happens When You Run
+The prompt starts showing `(venv)`. There is no Run button configured in this
+repository — no `.vscode/launch.json`, and `.vscode/` is gitignored — so run
+things from the terminal.
 
-**The program will:**
-1. Search for news articles about data centers
-2. Use AI to classify and filter them
-3. Generate summaries
-4. Create a PDF report
+## The three commands
 
-**Wait time:** This typically takes up to 10 minutes depending on how many articles it finds.
+| Command | What it does | Cost |
+|---|---|---|
+| `python main.py` | The full edition: search, classify, scrape, summarise, extract, deduplicate, PDF | **Money and 10–30 minutes.** Only with authorisation |
+| `python services/pdf_builder.py` | Rebuilds only the PDF from what is already in `output/` | Free, seconds |
+| `python -m unittest discover -s tests` | 66 tests of the rules that decide what the investor reads | Free, no network |
 
-**Your results:**
-- **Raw data:** `output/clippings.json` 
-- **PDF report:** `output/clippings_output.pdf`
+A full run cost US$ 0.20 and took 13 minutes on the 22 Sep 2026 edition
+(56 articles).
 
-**Remember:** Every time you run this, it uses the OpenAI API which costs money. Use responsibly!
+## Redoing one stage without paying for the ones before it
 
----
-
-## Edit Your Report (Optional)
-
-> **Edits made directly in `output/clippings.json` are lost on the next run.**
-> The durable place for them is `configs/overrides.json`, which is applied over
-> the pipeline's output every time the PDF is built. See `LEIA-ME.md` for the
-> blocks and their format. The instructions below still work for a one-off
-> rebuild you are about to send and never repeat.
-
-### Remove Articles
-
-Open `output/clippings.json` and delete the JSON objects for articles you don't want.
-
-### Add Articles
-
-Use ChatGPT with this prompt:
+The pipeline caches each stage. Stages, in order:
 
 ```
-"Create a valid JSON object for a news clipping. Use exactly this format:
-
-{
-"title": "Article title here",
-"source": "Source name", 
-"url": "https://article-url.com",
-"pubDate": "DD MMM",
-"class": "relevant",
-"category": "clientes",
-"summary": "Detailed summary of the news piece in Portuguese. ~100 words, focusing on actual facts, happenings, decisions, numbers, not opinions."
-}
-
-Category options (EXACTLY these five, lowercase — anything else and the
-article is silently missing from the PDF):
-- clientes (cloud providers / clients)
-- competidores (competing operators)
-- governo (regulation and policy)
-- inovação (technology and infrastructure advances)
-- outros (everything else that still matters)
-
-Create JSON for this article: [PASTE ARTICLE URL/TEXT HERE]"
+search · classify · scrape · summarize · ficha · dedup · pdf
 ```
 
-Copy the JSON and paste it into your `clippings.json` file.
+```bash
+python main.py --from=summarize    # redo from the summary onwards
+python main.py --list-cache        # what is cached
+python main.py --clear-cache       # delete the cache and exit (runs nothing)
+```
 
-### Regenerate Just the PDF
+If the code behind a stage changed since its cache was written, the program says
+so out loud instead of serving you a stale result.
 
-After editing the JSON, regenerate only the PDF:
+## Correcting an edition
 
-Open the `services/pdf_builder.py` file in your code editor and run it directly from there.
+**Do not edit `output/clippings.json` by hand.** It is overwritten on the next
+run, and the record of what the program gets wrong — the most valuable thing
+this process produces — is destroyed with it.
+
+Corrections go in `configs/overrides.json`, which is applied over the pipeline's
+output every time the PDF is built. Blocks: `removidas`, `categoria`, `resumo`,
+`highlight`, `fonte_nome`, `dedup`, `empresa`. The key is always the article's
+final URL. Then rebuild the PDF.
+
+`LEIA-ME.md` has the format of each block and the two traps.
+
+## Before you send
+
+Read what the program prints at the end. One warning matters more than the rest:
+
+```
+🚨 RESUMOS CITAM NÚMERO QUE NÃO ESTÁ NA MATÉRIA
+```
+
+It means a summary quotes a figure the program could not find anywhere in the
+article. **Open the link and check the number before sending.** On the
+21 Sep 2026 edition, three published figures did not exist in the source.
+
+## Your results
+
+- **PDF:** `output/clippings_output.pdf`
+- **Data:** `output/clippings.json` (and the previous version in
+  `output/clippings.anterior.json`)
+- **Archive:** `output/archive/<date>/` — kept out of the repository; it holds
+  third-party article text and the hand-corrected editions
 
 ---
 
 ## Usage Troubleshooting
 
 | Problem | Solution |
-|---------|----------|
-| `No module named '...'` | Make sure venv is activated (`source venv/bin/activate`) |
-| OpenAI API error | Check that `.env` file is in the main folder with correct API key |
+|---|---|
+| `No module named '...'` | The venv is not active. `source venv/bin/activate` |
+| `cannot load library 'libpango-1.0-0'` | Step 1 / Step 3. The venv was built without pango and cairo |
+| OpenAI API error | `.env` missing or the key is wrong. `cp .env.example .env` |
+| Chrome or driver errors in `scrape` | Google Chrome is not installed. Step 1 |
 | `(venv)` not showing | Run `source venv/bin/activate` from the project folder |
-| PDF generation fails | Check that you have both files in `configs/` folder |
+| PDF has no logo in the header | `configs/247.original.jpg` is missing. Step 6 |
+| PDF generation fails | `configs/clipping_template.html` is the only file the PDF truly needs; the logo is optional |
+| "Já existe uma execução em andamento" | Another run is going, or one died. `output/execucao.lock` holds the pid |
 
 ---
 
 ## File Locations
 
-- **`.env`**: Main folder (same level as `main.py`) - KEEP PRIVATE!
-- **`venv/`**: Main folder (same level as `main.py`) - created during setup
-- **Output files**: `output/clippings.json` and `output/clippings_output.pdf`
-- **Config files**: `configs/` folder
+- **`.env`**: main folder, next to `main.py` — KEEP PRIVATE
+- **`venv/`**: main folder — created during setup, not in the repository
+- **Output**: `output/clippings.json` and `output/clippings_output.pdf`
+- **Configuration and prompts**: `configs/`
+- **Corrections that survive a rerun**: `configs/overrides.json`
+
+---
+
+## What is deliberately NOT in this repository
+
+This repository is public. Three things are kept out on purpose:
+
+- **`.env`** — the OpenAI key, tied to a credit card.
+- **`configs/247.original.jpg`** — the client's logo, a brand asset.
+- **`output/archive/`** — full text of third-party articles, and the editions
+  already corrected by hand for the client.
+
+Everything else is here, including the PDF template, so a clone builds a
+complete edition.
 
 ---
 
@@ -349,5 +417,3 @@ The `.env` file contains an API key connected to a credit card. **NEVER**:
 - Upload it to GitHub
 - Take screenshots of it
 - Leave it visible anywhere
-
-Treat it like your banking password! 

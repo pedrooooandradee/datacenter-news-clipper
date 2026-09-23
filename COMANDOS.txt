@@ -27,7 +27,7 @@ python main.py --from=summarize     refaz do resumo em diante
 python main.py --from=ficha         refaz ficha, métricas e categoria final
 python main.py --from=dedup         refaz só a deduplicação
 python main.py --list-cache         mostra o que está guardado
-python main.py --clear-cache        apaga o cache e força execução completa
+python main.py --clear-cache        apaga o cache e SAI (não roda nada)
 
 ATENÇÃO: --from reescreve o output/clippings.json. A versão anterior fica em
 output/clippings.anterior.json, mas correção feita à mão só sobrevive de verdade
@@ -40,7 +40,7 @@ CONFERIR QUE O PROGRAMA CONTINUA CERTO (de graça, 1 segundo, sem internet)
 Depois de mexer em qualquer arquivo de configuração ou de código:
 python -m unittest discover -s tests
 
-São 47 testes das regras que decidem o que o investidor lê: qual número pode ser
+São 66 testes das regras que decidem o que o investidor lê: qual número pode ser
 publicado, qual veículo vence uma duplicata, qual empresa ganha caixa e o que
 cada correção manual faz. Se algum falhar, NÃO envie o clipping.
 
@@ -69,9 +69,19 @@ abra o link e confira o número antes de enviar.
 MONTAR O PROJETO DO ZERO (uma vez só)
 ─────────────────────────────────────────────────────────────────────────────
 
-O venv TEM de ser criado a partir do ambiente que traz libpango e libcairo,
-senão o PDF não gera:
+PRECISA ANTES: Google Chrome instalado (a coleta abre as páginas nele) e as
+bibliotecas libpango e libcairo, que o pip NÃO instala. Dois caminhos; escolha
+um e não misture. O passo a passo está no LEIA-ME.md.
 
-/Users/pedroandrade/.clipping247-python/bin/python3 -m venv venv
+A) Homebrew (o normal em Mac):
+brew install cairo pango gdk-pixbuf libffi
+python3 -m venv venv
+
+B) conda (é o que está montado na máquina em que o programa foi escrito):
+conda create -p ~/.clipping247-python -c conda-forge python=3.12 pango cairo
+~/.clipping247-python/bin/python3 -m venv venv
+
+Depois, dos dois jeitos:
 source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env        e preencha a chave da OpenAI

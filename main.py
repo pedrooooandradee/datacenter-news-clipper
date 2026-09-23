@@ -72,9 +72,14 @@ FINGERPRINT_SOURCES = {
     "ficha": ["configs/ficha_prompt.txt", "services/ficha.py",
               "services/utils/numeros.py", "configs/classification_prompt.txt",
               "services/classifier.py", "configs/modelos.json", "main.py"],
-    # select_survivor decides eligibility with tier_of, which reads fontes.json.
+    # select_survivor decides eligibility with tier_of, which reads fontes.json,
+    # and ranks the eligible ones with completude(), which lives in ficha.py.
+    # ficha.py was missing here: changing how completeness is scored changed
+    # which article of a duplicate group gets published, and left the cache
+    # looking untouched.
     "dedup": ["services/deduplicator.py", "configs/fontes.json",
-              "services/utils/fontes.py", "configs/modelos.json", "main.py"],
+              "services/utils/fontes.py", "services/ficha.py",
+              "configs/modelos.json", "main.py"],
 }
 
 
@@ -95,6 +100,15 @@ STALE_MARGIN_DAYS = 30
 def drop_failed_and_stale(items, days: int = 7):
     """
     Remove what the collector failed to fetch, and what the page itself says is old.
+
+    `days` HAS TO MATCH the window in configs/queries.json, and today nothing
+    enforces that. The number lives in three independent places: every query in
+    queries.json carries its own "days", this default, and the header line in
+    configs/clipping_template.html, which says "Week …" off its own hardcoded 7.
+    Widen queries.json to 14 for a fortnightly edition and leave this at 7, and
+    the whole second week arrives marked `date_outside_window` — a mark that is
+    written to the JSON, printed once in the terminal, and never rendered in the
+    PDF. The reader gets a 13-day-old story under a header that says one week.
 
     Two separate problems, both of which reached the PDF:
 

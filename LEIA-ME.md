@@ -13,19 +13,43 @@ clipping** com a logo da 247.
 
 ### O ambiente virtual tem de ser criado do jeito certo
 
-O WeasyPrint (quem desenha o PDF) precisa das bibliotecas `libpango` e `libcairo`.
-**Nesta máquina elas não vieram do Homebrew**: vêm de um ambiente conda em
-`~/.clipping247-python`. Um `venv` criado com o `python3` do PATH instala tudo e
-quebra na hora de gerar o PDF, com `cannot load library 'libpango-1.0-0'`.
+O WeasyPrint (quem desenha o PDF) precisa de duas bibliotecas de sistema,
+`libpango` e `libcairo`, que o `pip` NÃO instala. Um `venv` criado do jeito
+comum instala tudo direitinho e quebra na hora de gerar o PDF, com
+`cannot load library 'libpango-1.0-0'`.
+
+Há dois caminhos. **Escolha um e não misture.**
+
+**Caminho A — Homebrew.** O normal em Mac. Detalhado no `README.md`, Step 1.
 
 ```bash
-/Users/pedroandrade/.clipping247-python/bin/python3 -m venv venv
+brew install cairo pango gdk-pixbuf libffi
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Em outra máquina, o caminho do Homebrew descrito no `README.md` também funciona —
-o que não funciona é misturar os dois.
+Em Mac Apple Silicon (M1 em diante), se mesmo assim der
+`cannot load library`, é porque o Homebrew instala em `/opt/homebrew/lib` e o
+WeasyPrint não procura lá. Ponha no `.env`:
+
+```
+PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig
+```
+
+**Caminho B — conda.** É o que está montado na máquina em que o programa foi
+escrito, que não tem Homebrew. Cria um ambiente só com as bibliotecas e usa o
+`python3` dele para montar o `venv`:
+
+```bash
+conda create -p ~/.clipping247-python -c conda-forge python=3.12 pango cairo
+~/.clipping247-python/bin/python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+O ambiente existente nessa máquina tem exatamente isso: Python 3.12.2, `pango`,
+`cairo`, `harfbuzz` e as fontes, tudo do `conda-forge`, em `osx-arm64`.
 
 ### A logo da 247
 
@@ -35,6 +59,18 @@ imagem no cabeçalho, e o terminal avisa que o arquivo falta.
 
 Para gerar a edição que vai ser enviada, peça o `247.original.jpg` a quem já
 tem e ponha em `configs/`. Uma vez só; ele fica lá.
+
+> Até 23 set 2026 este parágrafo prometia um aviso que não existia: o
+> WeasyPrint simplesmente não desenha a imagem e devolve um PDF válido, sem uma
+> palavra. Dava para enviar ao cliente uma edição de cabeçalho vazio sem
+> perceber. O aviso agora é impresso pelo próprio programa.
+
+### O Google Chrome
+
+A etapa de coleta abre as páginas num Chrome invisível (Selenium). **O Chrome
+tem de estar instalado na máquina** — o `pip` não instala navegador. O
+`webdriver-manager` baixa sozinho só o driver, não o navegador. Sem Chrome, a
+etapa `scrape` falha em todas as matérias.
 
 ### O arquivo `.env`
 
@@ -54,8 +90,8 @@ Sempre com `(venv)` no início da linha do terminal. Se não estiver:
 python main.py
 ```
 
-⚠️ **Só com autorização do Gabriel ou do Leo.** Gasta dinheiro de API e leva de
-10 a 30 minutos. Sem nenhuma opção, roda tudo do zero — é sempre uma edição nova,
+⚠️ **Só com autorização de quem responde pelo projeto na 247.** Gasta dinheiro
+de API (US$ 0,20 na edição de 22/09, com 56 matérias) e leva de 10 a 30 minutos. Sem nenhuma opção, roda tudo do zero — é sempre uma edição nova,
 nunca reaproveita busca da semana passada.
 
 ### 2. Refazer só o PDF
@@ -84,7 +120,7 @@ programa avisa em voz alta.
 
 ```bash
 python main.py --list-cache     # o que está guardado
-python main.py --clear-cache    # apaga tudo e força execução completa
+python main.py --clear-cache    # apaga o cache e SAI, sem rodar nada
 ```
 
 ⚠️ `--from` **reescreve** o `output/clippings.json`. A versão anterior é guardada
@@ -97,7 +133,7 @@ verdade se estiver no `configs/overrides.json` (abaixo).
 python -m unittest discover -s tests
 ```
 
-De graça, um segundo, sem internet. São 47 testes das regras que decidem o que o
+De graça, um segundo, sem internet. São 66 testes das regras que decidem o que o
 investidor lê. Rode depois de mexer em qualquer configuração. **Se algum falhar,
 não envie o clipping.**
 
@@ -150,6 +186,12 @@ Depois rode o **comando 2**.
 `dedup`. Não é burocracia: daqui a dois meses esses motivos são a única lista real
 de onde o programa erra, e viram os exemplos dos prompts. Sem eles sobra uma lista
 de URLs sem sentido.
+
+Obrigatório pela regra da casa, não pelo programa: sem `motivo` a correção é
+aplicada do mesmo jeito e sai um aviso no fim. O único campo que o código
+realmente exige é o `aprovado_por` do bloco `empresa` — sem ele a ficha da
+empresa não é registrada, porque ela vira texto publicado no PDF e precisa ter
+dono.
 
 Duas armadilhas:
 - Reescrever o resumo **apaga a caixa de métricas** daquela notícia. A regra é que

@@ -32,7 +32,6 @@ from services import empresas, overrides
 # ─────────────────────────────────────────────────────────────────────
 # Paths
 # ─────────────────────────────────────────────────────────────────────
-SERVICES_DIR = _SERVICES_DIR
 PROJECT_ROOT = _PROJECT_ROOT
 JSON_PATH = os.path.join(PROJECT_ROOT, "output", "clippings.json")
 CONFIGS_DIR = os.path.join(PROJECT_ROOT, "configs")
@@ -182,12 +181,30 @@ def render_html(env: Environment, template_name: str, items: List[Dict],
     )
 
 
+LOGO_PATH = os.path.join(CONFIGS_DIR, "247.original.jpg")
+
+
 def generate_pdf_from_html(html_string: str, output_path: str) -> None:
     """
     Write the HTML to a PDF.
 
     base_url=CONFIGS_DIR is what makes the logo's relative path resolve.
+
+    The logo is a client brand asset and is deliberately out of the repository,
+    so a fresh clone builds a PDF with an empty header. WeasyPrint does not
+    complain about that: it drops the <img> and returns a valid document, exit
+    code 0, nothing on stderr — measured on 23 set 2026. Three documents used to
+    promise a warning that never came, which is how an edition reaches the
+    client with no logo. The warning is printed here, by us.
     """
+    if not os.path.exists(LOGO_PATH):
+        print("⚠️  configs/247.original.jpg não está aqui. O PDF vai sair SEM a "
+              "logo no cabeçalho.\n"
+              "     A logo é marca do cliente e não fica no repositório. Peça o "
+              "arquivo a quem já tem e ponha em configs/.\n"
+              "     Para conferir a edição enquanto trabalha, tudo bem. Para "
+              "ENVIAR ao cliente, não.")
+
     HTML(string=html_string, base_url=CONFIGS_DIR).write_pdf(output_path)
 
 

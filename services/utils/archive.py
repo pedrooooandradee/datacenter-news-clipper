@@ -210,7 +210,18 @@ def _report_edits(folder: str) -> None:
 
 
 if __name__ == "__main__":
-    # Quick standalone test against a throwaway date, so it never touches a real edition.
+    # Quick standalone test against a throwaway date.
+    #
+    # The throwaway date is not enough on its own: archive_raw calls
+    # registrar_edicao, which rewrites output/edicao_atual.json — the file the
+    # PDF reads to date its header. Running this test used to stamp the edition
+    # being worked on as 01/01/1999, and the next rebuild of the PDF would carry
+    # that date to the client. So the file is saved and put back.
+    _edicao_antes = None
+    if os.path.exists(EDICAO_PATH):
+        with open(EDICAO_PATH, "r", encoding="utf-8") as f:
+            _edicao_antes = f.read()
+
     test_when = datetime(1999, 1, 1)
     sample = [
         {"url": "https://example.com/a", "title": "A", "category": "governo",
@@ -229,4 +240,12 @@ if __name__ == "__main__":
         json.dump(edited, f, ensure_ascii=False, indent=2)
 
     archive_final(edited_path, pdf_path="/nonexistent.pdf", when=test_when)
+
+    if _edicao_antes is not None:
+        with open(EDICAO_PATH, "w", encoding="utf-8") as f:
+            f.write(_edicao_antes)
+        print("   (output/edicao_atual.json devolvido ao que era antes do teste)")
+    elif os.path.exists(EDICAO_PATH):
+        os.remove(EDICAO_PATH)
+
     print(f"\nTeste escreveu em {folder} — apague à mão se quiser.")

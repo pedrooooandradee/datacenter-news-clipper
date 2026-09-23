@@ -7,14 +7,23 @@ The clipping goes to investors, and this week's edition reached them citing a
 member of parliament's own campaign site and a page of SEO filler about token
 pricing. Tiers decide three things:
 
-  1  enters · can win a duplicate group · can be the sole source of a figure
-  2  enters · can win a group · can be sole source for a figure about its own subject
-  3  enters · never wins a group · never the sole source of a figure
+  1  enters · can win a duplicate group
+  2  enters · can win a duplicate group
+  3  enters · never wins a group
   4  does not enter
 
 An unlisted outlet is treated as tier 3 rather than dropped: the local paper in
 Rio Grande do Norte covers grid news that no national outlet touches. What it
-cannot do is win a group or carry a number on its own.
+cannot do is win a duplicate group.
+
+What tiers do NOT do, today, is gate figures. This docstring used to state a
+third rule — "can be the sole source of a figure" — and `can_carry_figure_alone`
+below exists to answer it, but nothing calls that function: a number from a
+tier-3 outlet is published exactly like a number from Valor. The rule that
+actually protects the figures is elsewhere, in services/ficha.py, and it is
+about the text rather than the outlet: the figure has to appear in the body, in
+the quoted sentence and in the published summary. Read this list as two live
+rules and one intention.
 
 The lists live in configs/fontes.json so they can be edited without touching code.
 """
@@ -117,7 +126,16 @@ def can_win_group(source: str) -> bool:
 
 
 def can_carry_figure_alone(source: str) -> bool:
-    """Whether a figure from this outlet may be published without corroboration."""
+    """
+    Whether a figure from this outlet may be published without corroboration.
+
+    NÃO ESTÁ LIGADA A NADA. Nenhum código do pipeline chama esta função, então
+    hoje um número de veículo tier 3 é publicado igual a um do Valor. Está aqui
+    porque a regra foi decidida e não implementada: ligar isso significa decidir
+    o que fazer com o número quando ele reprova — derrubar a notícia inteira,
+    publicar sem o número, ou marcar para conferência humana — e essa decisão
+    não foi tomada. Quem for implementar, comece por essa pergunta.
+    """
     return tier_of(source) <= 2
 
 

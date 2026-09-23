@@ -1,15 +1,39 @@
+# O que o pipeline importa de verdade. Conferido por grep em 23 set 2026:
+# toda linha daqui é importada por algum arquivo que roda.
+
 jinja2>=3.1.0
 weasyprint>=60.0
+
+# O weasyprint depende de libpango e libcairo, que NÃO vêm do pip. Sem elas o
+# import quebra com "cannot load library 'libpango-1.0-0'". Ver LEIA-ME.md.
+
 langchain-openai>=0.0.5
 langchain-core>=0.1.0
+
+# Chamado direto (from openai import OpenAI) por services/deduplicator.py e
+# services/ficha.py. Até 23 set 2026 não estava declarado aqui e só instalava
+# porque o langchain-openai o puxa junto — o dia em que o langchain trocasse de
+# cliente, duas etapas pagas quebrariam sem nenhum aviso.
+openai>=1.0.0
+
 feedparser>=6.0.0
-selenium>=4.0.0
 trafilatura>=2.2.0
-# docling: não é mais importado por nenhum código do pipeline desde que o
-# scraper passou a usar trafilatura (22 set 2026). Mantido só porque
-# tests/test_scraper.ipynb ainda o referencia. Removê-lo tira junto torch,
-# torchvision, transformers e accelerate — ver DECISOES.md.
-docling>=0.1.0
-python-dotenv>=1.0.1
-python-dateutil>=2.8.0
+
+# selenium e webdriver-manager exigem o Google Chrome INSTALADO na máquina.
+# O pip não instala o Chrome. Ver LEIA-ME.md, "Antes de rodar pela primeira vez".
+selenium>=4.0.0
 webdriver-manager>=4.0.0
+
+python-dotenv>=1.0.1
+
+# Saíram daqui em 23 set 2026:
+#
+# docling — nenhum código do pipeline o importa desde que o scraper passou a
+#   usar trafilatura (22 set). Ficava só por causa de tests/test_scraper.ipynb,
+#   um caderno da versão 1 que não roda nem com ele instalado (importa requests,
+#   bs4 e langchain.prompts, nenhum dos três declarado). Arrastava torch,
+#   torchvision, transformers e accelerate: ~1,3 GB de download para sustentar
+#   um arquivo quebrado.
+#
+# python-dateutil — zero ocorrências de "dateutil" no projeto inteiro. As datas
+#   são tratadas por datetime.fromisoformat e email.utils.parsedate_to_datetime.
