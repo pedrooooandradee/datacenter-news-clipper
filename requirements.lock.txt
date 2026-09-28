@@ -10,8 +10,8 @@
 # Serve também para Windows e Linux: "pip download --platform" confirmou que
 # toda versão daqui tem pacote pronto para Windows, Linux (Python 3.10 a 3.12) e
 # Mac Intel, sem compilar nada. Instalado e testado de verdade num Mac com Python
-# 3.12 e 3.10; nos outros sistemas, pelo workflow do GitHub
-# (.github/workflows/instalacao.yml).
+# 3.12 e 3.10; e pelo workflow do GitHub (.github/workflows/instalacao.yml) em
+# Windows, Ubuntu 22.04 e 24.04 e Mac — verde nos quatro em 28 set 2026.
 # O tzdata foi acrescentado depois, à mão: o Windows não tem o banco de fusos
 # que o Mac e o Linux trazem, e sem ele a data de Brasília não existe.
 #

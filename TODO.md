@@ -25,8 +25,10 @@ o fim de outubro.
    pasta "Clippings Semanais" do Drive (elementum3 | Geral › 247 DATA CENTERS), e o
    programa já os salva com o nome que ela usa.
 6. **Máquina** — em qual computador roda. O README tem a instalação para Mac,
-   Windows e Linux; o workflow do GitHub as instala do zero a cada mudança. O que
-   falta é saber qual computador, e alguém instalar nele seguindo só o README.
+   Windows e Linux, e o workflow do GitHub a refaz do zero a cada mudança (verde
+   nos quatro sistemas em 28 set 2026). O que falta é saber qual computador, e
+   alguém instalar nele seguindo só o README: o workflow não passa pelo instalador
+   do python.org nem pelo Cursor.
 7. **Uso de IA na revisão** — pode? Com qual conta?
 8. **Suporte técnico** depois de janeiro.
 

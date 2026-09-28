@@ -768,7 +768,12 @@ Google Notícias, a chave (pela consulta gratuita) e os testes. Neste Mac ele
 passou com Python 3.12 e com 3.10 (o do Ubuntu 22.04). Para os sistemas que não
 há aqui, o workflow do GitHub (`.github/workflows/instalacao.yml`) instala o
 projeto do zero, pela receita do README, em Windows, Ubuntu 22.04 e 24.04 e Mac,
-e roda o mesmo script. O cabeçalho dele diz o que não cobre.
+e roda o mesmo script. O cabeçalho dele diz o que não cobre. Na primeira rodada,
+em 28/09, o Windows achou dois defeitos que nenhum Mac mostraria: um teste que
+supunha arquivos no mesmo disco, e uma mensagem que quebrava com arquivos em
+discos diferentes (C: e D:) e derrubava a montagem do PDF. Corrigidos, os quatro
+ficaram verdes: Python, bibliotecas, fuso, PDF com a Montserrat, Chrome abrindo
+página e os 119 testes.
 
 A mesma revisão independente pegou ainda: os testes quebrando no Windows quando a
 saída vai para um arquivo (os símbolos ⛔ e ✏️ não existem na página de código
