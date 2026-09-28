@@ -1353,6 +1353,25 @@ class RevisaoMultiplataforma(unittest.TestCase):
         finally:
             archive.ARCHIVE_DIR = original
 
+    def test_caminho_em_outro_disco_nao_derruba_mensagem(self):
+        """
+        On Windows, relpath between C: and D: raises ValueError. The GitHub check
+        found a message about the archive stopping the PDF build over it.
+        """
+        from services.utils import projeto, cache as modulo_cache
+
+        def outro_disco(*_args, **_kwargs):
+            raise ValueError("path is on mount 'C:', start on mount 'D:'")
+
+        original = os.path.relpath
+        os.path.relpath = outro_disco
+        try:
+            self.assertEqual(projeto.relativo("C:/x/y.pdf"), "C:/x/y.pdf")
+            self.assertEqual(archive._relativo("C:/x"), "C:/x")
+            self.assertEqual(modulo_cache._relativo("C:/x"), "C:/x")
+        finally:
+            os.path.relpath = original
+
     def test_pdf_de_nome_antigo_sai_de_output(self):
         from services import pdf_builder
         raiz = tempfile.mkdtemp()

@@ -28,7 +28,7 @@ from services.utils.archive import (
     archive_raw, edicao_anterior, url_chave, DIAS_DA_QUINZENAL, SEMANAL, QUINZENAL,
 )
 from services.utils.projeto import (
-    modelo, sem_credito, descrever_erro, SemCredito, preparar_terminal,
+    modelo, sem_credito, descrever_erro, SemCredito, preparar_terminal, relativo,
 )
 from services.utils.datetime_utils import dia_local
 from services.utils import cache
@@ -531,7 +531,7 @@ def _fechar_registro(registro):
     sys.stdout, sys.stderr = originais
     arquivo.close()
     print(f"📝 Tudo o que apareceu acima está salvo em "
-          f"{caminho.relative_to(PROJECT_ROOT)} — é o que a revisão usa.")
+          f"{relativo(caminho)} — é o que a revisão usa.")
 
 
 def _executar(args):

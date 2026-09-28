@@ -29,6 +29,7 @@ from services.utils.archive import (
 )
 from services.utils.datetime_utils import format_datetime_br
 from services.utils.fontes import tier_of
+from services.utils.projeto import relativo
 from services import empresas, overrides
 
 # ─────────────────────────────────────────────────────────────────────
@@ -319,7 +320,7 @@ def build_pdf(json_path: str = JSON_PATH, output_pdf: Optional[str] = None) -> s
     if not os.path.exists(json_path):
         # A fresh clone has no edition yet, and this used to end in a raw
         # FileNotFoundError traceback — the first thing a new person saw.
-        print(f"⛔ Ainda não existe nenhuma edição em {os.path.relpath(json_path, PROJECT_ROOT)}.\n"
+        print(f"⛔ Ainda não existe nenhuma edição em {relativo(json_path)}.\n"
               f"   Este comando só REFAZ o PDF de uma edição que já rodou. Para gerar a "
               f"primeira: python main.py")
         return ""
@@ -350,7 +351,7 @@ def build_pdf(json_path: str = JSON_PATH, output_pdf: Optional[str] = None) -> s
     except PermissionError:
         # Windows does not let a file be rewritten while a PDF reader has it open.
         print(f"⛔ O PDF NÃO foi gerado: não consegui gravar "
-              f"{os.path.relpath(output_pdf, PROJECT_ROOT)}.\n"
+              f"{relativo(output_pdf)}.\n"
               f"   Quase sempre é o PDF aberto no Acrobat ou no navegador. Feche-o e "
               f"rode de novo: python services/pdf_builder.py")
         return ""
@@ -367,7 +368,7 @@ def build_pdf(json_path: str = JSON_PATH, output_pdf: Optional[str] = None) -> s
         _limpar_pdfs_antigos(output_pdf)
 
     print(f"📄 PDF para enviar e subir no Drive: "
-          f"{os.path.relpath(output_pdf, PROJECT_ROOT)}")
+          f"{relativo(output_pdf)}")
     return output_pdf
 
 

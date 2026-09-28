@@ -35,6 +35,14 @@ UTILS_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(UTILS_DIR))
 ARCHIVE_DIR = os.path.join(PROJECT_ROOT, "output", "archive")
 
+
+def _relativo(caminho: str) -> str:
+    """Relative to the project for display; on Windows, across drives, as is."""
+    try:
+        return os.path.relpath(caminho, PROJECT_ROOT)
+    except ValueError:
+        return caminho
+
 RAW_NAME = "clippings.raw.json"
 FINAL_NAME = "clippings.final.json"
 
@@ -229,7 +237,7 @@ def archive_raw(items: List[Dict], when: Optional[datetime] = None,
     with open(path, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
 
-    print(f"📦 Saída crua arquivada em {os.path.relpath(path, PROJECT_ROOT)} ({len(items)} notícias)")
+    print(f"📦 Saída crua arquivada em {_relativo(path)} ({len(items)} notícias)")
     return path
 
 
@@ -273,7 +281,7 @@ def archive_final(json_path: str, pdf_path: str, when: Optional[datetime] = None
                     pass
         shutil.copy2(pdf_path, os.path.join(folder, nome))
 
-    print(f"📦 Edição arquivada em {os.path.relpath(folder, PROJECT_ROOT)}")
+    print(f"📦 Edição arquivada em {_relativo(folder)}")
     _report_edits(folder)
     return folder
 

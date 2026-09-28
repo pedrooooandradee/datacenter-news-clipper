@@ -32,6 +32,14 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(UTILS_DIR))
 CACHE_DIR = os.path.join(PROJECT_ROOT, "output", "cache")
 
 
+def _relativo(caminho: str) -> str:
+    """Relative to the project for display; on Windows, across drives, as is."""
+    try:
+        return os.path.relpath(caminho, PROJECT_ROOT)
+    except ValueError:
+        return caminho
+
+
 # ─────────────────────────────────────────────────────────────────────
 # JSON with datetime support
 # ─────────────────────────────────────────────────────────────────────
@@ -113,7 +121,7 @@ def load(stage: str, fingerprint: str = "") -> Optional[Tuple[List[Dict], str]]:
     """
     path = os.path.join(CACHE_DIR, f"{stage}.json")
     if not os.path.exists(path):
-        print(f"⚠️  Não há cache da etapa '{stage}' em {os.path.relpath(path, PROJECT_ROOT)}.")
+        print(f"⚠️  Não há cache da etapa '{stage}' em {_relativo(path)}.")
         return None
 
     try:

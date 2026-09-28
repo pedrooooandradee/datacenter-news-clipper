@@ -33,6 +33,20 @@ def caminho_config(nome: str) -> str:
     return os.path.join(CONFIGS_DIR, nome)
 
 
+def relativo(caminho) -> str:
+    """
+    A path as shown to the user: relative to the project when possible.
+
+    os.path.relpath raises ValueError on Windows when the two paths are on
+    different drives (C: and D:). Found by the GitHub check on Windows, where a
+    message about where a file was archived stopped the PDF build.
+    """
+    try:
+        return os.path.relpath(str(caminho), PROJECT_ROOT)
+    except ValueError:
+        return str(caminho)
+
+
 def ler_config(nome: str) -> str:
     """Read a text file from configs/, as text."""
     with open(caminho_config(nome), "r", encoding="utf-8") as f:
