@@ -129,10 +129,12 @@ To work with this project, you need to get a copy of its files from GitHub onto 
        ```bash
        cd path/to/your/folder
        ```
-     - Execute the following command, substituting `URL` with the copied URL:
+     - Execute the following command:
        ```bash
-       git clone URL
+       git clone https://github.com/pedrooooandradee/datacenter-news-clipper.git
        ```
+       This is where version 2 lives. The older repository under `Orimadros`
+       holds version 1 and is no longer maintained — do not clone that one.
      - Hit Enter to initiate the download of the project files to your system.
 
 3. **Navigate to the Project Folder:**

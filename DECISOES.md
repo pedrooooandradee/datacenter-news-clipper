@@ -632,8 +632,14 @@ editorial, não fato.
   a logo `configs/247.original.jpg` e o `output/archive/` (texto integral de
   matérias de terceiros e as edições corrigidas à mão).
 
-- Transferir o repositório da conta pessoal `Orimadros` para uma conta da
-  Elementum3 ou do conselho da 247, antes de janeiro de 2027. Depois que o
-  acesso pessoal se perde, não há como transferir.
+- **Onde o código mora.** O repositório original, `github.com/Orimadros/datacenter-news-clipper`,
+  é da conta pessoal do Leo — não do Pedro, como este documento chegou a afirmar em
+  23 set. O push da v2 foi recusado ali em 28 set 2026 (`403`, sem permissão). A v2
+  foi publicada num repositório novo, na conta do Pedro: `https://github.com/pedrooooandradee/datacenter-news-clipper`, com a v2 como
+  `main` e o histórico da v1 preservado por baixo.
+- Transferir esse repositório para uma conta da Elementum3 ou do conselho da 247
+  antes de janeiro de 2027. Ele é da conta pessoal do Pedro; depois que o acesso
+  dele acaba, ninguém mais transfere. O da `Orimadros` continua público com a v1 de
+  julho de 2025, e só o dono pode arquivá-lo.
 - Pedir ao colega os PDFs das edições já enviadas (verdade de campo com
   julgamento humano dentro).

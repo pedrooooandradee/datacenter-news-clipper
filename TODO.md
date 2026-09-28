@@ -76,8 +76,11 @@ Decidir se viram marca no PDF, linha no rodapé, ou nada.
 
 ## Fora do código
 
-- **O repositório está em conta pessoal do GitHub** (`Orimadros`). Transferir
-  para uma conta da Elementum3 ou do conselho da 247 antes de janeiro de 2027.
+- **Transferir o repositório** (`https://github.com/pedrooooandradee/datacenter-news-clipper`) para uma conta da Elementum3 ou do
+  conselho da 247 antes de janeiro de 2027. Está na conta pessoal do Pedro: depois
+  que ele sair, ninguém transfere. O repositório antigo (`Orimadros`) é da conta do
+  Leo e segue público com a v1 — vale pedir a ele que o arquive, com um aviso
+  apontando para o novo.
 - **Não existe documento de operação**: para quem vai o PDF, por qual canal, em
   que dia, quem aprova antes de enviar, quem tem a logo e quem paga a chave da
   OpenAI. Nada disso está escrito em lugar nenhum.
