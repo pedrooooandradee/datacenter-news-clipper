@@ -21,6 +21,11 @@ langchain-core>=0.1.0
 # cliente, duas etapas pagas quebrariam sem nenhum aviso.
 openai>=1.0.0
 
+# O fuso de Brasília (zoneinfo "America/Sao_Paulo") vem do sistema no Mac e no
+# Linux. O Windows não tem esse banco de fusos: sem este pacote, a primeira data
+# formatada para o PDF quebra com ZoneInfoNotFoundError.
+tzdata>=2024.1
+
 feedparser>=6.0.0
 trafilatura>=2.2.0
 

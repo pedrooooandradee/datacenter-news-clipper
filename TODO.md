@@ -21,8 +21,12 @@ o fim de outubro.
    serviço num projeto só do clipping, com limite mensal. A chave em uso hoje chegou
    pelo Leo e está também na cópia antiga do iCloud: trocar e depois revogar.
 4. **GitHub** — organização da Elementum3, para o Pedro transferir o repositório.
-5. **Pasta corporativa** para `output/archive/` e os PDFs enviados.
-6. **Máquina** — em qual computador roda, e se é Mac (só Mac está testado).
+5. **Pasta corporativa** para `output/archive/`. Os PDFs enviados já têm lugar: a
+   pasta "Clippings Semanais" do Drive (elementum3 | Geral › 247 DATA CENTERS), e o
+   programa já os salva com o nome que ela usa.
+6. **Máquina** — em qual computador roda. O README tem a instalação para Mac,
+   Windows e Linux; o workflow do GitHub as instala do zero a cada mudança. O que
+   falta é saber qual computador, e alguém instalar nele seguindo só o README.
 7. **Uso de IA na revisão** — pode? Com qual conta?
 8. **Suporte técnico** depois de janeiro.
 
@@ -38,6 +42,13 @@ Quando as respostas vierem: preencher a seção "Operação semanal" do `LEIA-ME
   a cópia do iCloud; no último dia, `gh auth logout`.
 - Pedir ao Leo que arquive o repositório antigo (`github.com/Orimadros/…`), que
   segue público com a v1, com um aviso apontando para o novo.
+- Na primeira edição com a busca nova (05/10), anotar o custo, o tempo e o número
+  de notícias: ela traz o dobro de candidatas. Se a revisão ficar pesada demais,
+  é a busca que se ajusta (DECISOES.md, "Busca com datas").
+- Fatias de busca menores que uma semana: mesmo abaixo do teto de 100, pedir um
+  intervalo menor traz mais notícias ("aws" em três dias trouxe 17 que a semana
+  inteira não trouxe, a maioria fora do tema). Decidir com os números das
+  primeiras edições se o que se ganha compensa a triagem e a revisão a mais.
 
 ---
 

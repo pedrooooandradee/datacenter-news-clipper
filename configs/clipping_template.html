@@ -2,8 +2,23 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* ──────────────────────────────────────────────────────────────
+       FONT: Montserrat, from configs/fontes/ (SIL Open Font License,
+       OFL.txt alongside). It used to come from Google Fonts on every
+       build: offline, or behind a firewall that blocks Google, the PDF
+       came out in Helvetica or Arial with no warning. These are the same
+       four files Google served to WeasyPrint, so the PDF is unchanged.
+       ────────────────────────────────────────────────────────────── */
+    @font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 400;
+                 src: url('fontes/Montserrat-400.ttf') format('truetype'); }
+    @font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 500;
+                 src: url('fontes/Montserrat-500.ttf') format('truetype'); }
+    @font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 600;
+                 src: url('fontes/Montserrat-600.ttf') format('truetype'); }
+    @font-face { font-family: 'Montserrat'; font-style: normal; font-weight: 700;
+                 src: url('fontes/Montserrat-700.ttf') format('truetype'); }
+
     /* ──────────────────────────────────────────────────────────────
        PAGE SETUP: A4 with top margin for header
        ────────────────────────────────────────────────────────────── */

@@ -1,0 +1,119 @@
+# Instala o clipping do zero, pela receita do README, em Windows, Linux e Mac, e
+# roda o diagnóstico (conferir_instalacao.py) e os testes. Roda a cada push.
+#
+# Por quê: o programa é usado por gente que não o escreveu, em computadores que
+# ninguém daqui testou. Uma receita de instalação que só foi testada num Mac não
+# vale para um Windows; aqui ela é instalada de verdade, nos três, toda vez.
+#
+# O que isto NÃO cobre, e por quê:
+#   - Windows: o Python vem do actions/setup-python, não do instalador do
+#     python.org, então o "py -3.12" do README não é exercitado (usa-se
+#     "python"); o MSYS2 é o que já vem na máquina do GitHub, em C:\msys64.
+#   - A chave da OpenAI e o Google Notícias (--sem-chave --sem-internet): nada
+#     aqui gasta dinheiro nem depende de o Google responder a um robô.
+#   - O Cursor e os seus perfis de terminal.
+
+name: Instalação nos três sistemas
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Belt and braces: the tests also switch the output to UTF-8 themselves.
+  PYTHONUTF8: "1"
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.04 traz o Python 3.10 e não tem libharfbuzz-subset0: é o caso mais velho
+        # que o README aceita.
+        os: [ubuntu-24.04, ubuntu-22.04]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Passo 3 do README (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 python3-venv
+          sudo apt-get install -y libharfbuzz-subset0 || echo "libharfbuzz-subset0 não existe aqui: segue sem ele, como diz o README"
+          python3 --version
+          python3 -m venv venv
+      - name: Passo 4 — bibliotecas nas versões travadas
+        run: |
+          . venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+      - name: Passo 6 — diagnóstico
+        run: |
+          . venv/bin/activate
+          python conferir_instalacao.py --sem-chave --sem-internet
+      - name: Testes
+        run: |
+          . venv/bin/activate
+          python -m unittest discover -s tests
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Passo 3 do README (Windows) — bibliotecas do PDF pelo MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          release: false
+          install: mingw-w64-ucrt-x86_64-pango
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Passo 3 do README (Windows) — venv
+        run: python -m venv venv
+      - name: Passo 4 — bibliotecas nas versões travadas
+        run: |
+          venv\Scripts\Activate.ps1
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+      - name: Passo 6 — diagnóstico
+        run: |
+          venv\Scripts\Activate.ps1
+          python conferir_instalacao.py --sem-chave --sem-internet
+      - name: Testes
+        run: |
+          venv\Scripts\Activate.ps1
+          python -m unittest discover -s tests
+
+  mac:
+    name: Mac (chip Apple)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          auto-activate-base: false
+      - name: Passo 3 do README (Mac) — a receita exata
+        shell: bash -el {0}
+        run: |
+          CONDA_SUBDIR=osx-arm64 conda create -y -p ~/.clipping247-python --override-channels -c conda-forge python=3.12 pango cairo gdk-pixbuf libffi
+          ~/.clipping247-python/bin/python3 -m venv venv
+      - name: Passo 4 — bibliotecas nas versões travadas
+        run: |
+          . venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+      - name: Passo 6 — diagnóstico
+        run: |
+          . venv/bin/activate
+          python conferir_instalacao.py --sem-chave --sem-internet
+      - name: Testes
+        run: |
+          . venv/bin/activate
+          python -m unittest discover -s tests

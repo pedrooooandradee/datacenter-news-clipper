@@ -1,0 +1,8 @@
+# Texto com o fim de linha de cada sistema; binários nunca convertidos.
+* text=auto
+*.ttf binary
+*.jpg binary
+*.pdf binary
+# Lidos por shells de Mac e Linux: sempre LF, mesmo num clone feito no Windows.
+.vscode/zsh/* text eol=lf
+.vscode/bash/* text eol=lf

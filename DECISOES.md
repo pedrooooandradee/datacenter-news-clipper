@@ -693,6 +693,90 @@ cético. Confirmou 20. Os que mudaram decisão:
 As oito definições pedidas ao Edson estão no topo do `TODO.md`. Sem elas o código
 roda, mas ninguém sabe quem o roda, quem revisa e para quem vai.
 
+## O nome do Drive, a quinzenal, a busca com datas e os outros computadores (28 set 2026)
+
+Pedido do Pedro, com dez PDFs baixados da pasta "Clippings Semanais" do Drive como
+referência: que o PDF saia com o mesmo título e formatação, e que o programa rode
+em qualquer computador, não só no Mac.
+
+**A formatação já era a mesma.** Os PDFs do Drive saem do mesmo modelo, pelo
+WeasyPrint (o 67 até o começo do ano, o 70 no de 21/09): mesma logo, mesmo índice,
+mesmas páginas. O que mudava era o nome do arquivo, que alguém digitava à mão. O
+programa agora o escreve sozinho (`nome_do_pdf`, em `services/utils/archive.py`).
+
+A regra do nome foi lida nos próprios arquivos, e a revisão independente corrigiu
+a minha primeira leitura. A primeira data não é o início da busca: é o dia da
+**edição anterior**. A de 14/09 se chama `(08_09 - 14_09 …)`, por causa da edição
+de terça, 08/09, embora o cabeçalho dela diga "Week 07 Sep". E o tipo, Semanal ou
+Quinzenal, é uma decisão de quem roda, não uma conta de dias. Os testes
+reproduzem, letra por letra, cinco nomes reais e a sequência de 24/08 a 21/09
+passando pelas mesmas funções que o `main.py` usa. Entre eles está
+`2026.01.05 Clipping Atualização Quinzenal (22_12_2025 - 05_01_2026 às 13h13).pdf`.
+
+**A quinzenal volta, pedida pelo nome.** Os nomes do Drive mostram que a empresa
+fez edições de 14 dias de propósito, nas festas e no Carnaval. Na revisão desta
+mesma data eu tinha tirado a janela que se esticava sozinha, e a razão continua
+valendo: esticar por causa de um buraco no arquivo local trazia de volta edições
+já enviadas. A quinzenal agora é uma decisão: `python main.py --quinzenal`. A
+janela, o dia da edição anterior e o tipo viajam com o cache, para um `--from`
+não trocar Semanal por Quinzenal (a revisão pegou a troca num `--from` uma semana
+depois).
+
+**Busca com datas.** O teste da quinzenal mostrou uma falha que valia para toda
+edição. A busca pedia ao Google a consulta sem datas, recebia cerca de 100
+resultados misturando semanas e ficava com o que era da semana. Pedindo as datas
+(`after:`/`before:`), uma semana de cada vez, as 15 consultas reais trouxeram 457
+notícias candidatas contra 230 — "aws" 13 → 58, "oracle cloud" 1 → 34, "scala data
+centers" 4 → 15, "elea data centers" 1 → 9. Justamente concorrentes e clientes. A
+semanal continua fazendo um pedido por consulta. O preço é uma edição maior e mais
+cara, ainda não medida (TODO). Não é tudo: duas consultas batem no teto de 100
+mesmo numa semana, e o programa avisa. Mesmo abaixo do teto, um intervalo menor
+traz mais ("aws" em três dias trouxe 17 notícias que a semana inteira não
+trouxe, a maioria fora do tema). Se isso compensa, as primeiras edições dirão
+(TODO). Uma busca que falha é repetida uma vez; se falhar de novo, o programa
+diz que falhou, em vez de cair numa busca pior sem avisar.
+
+**A fonte deixou de vir da internet.** O modelo baixava a Montserrat do Google
+Fonts a cada PDF. Sem internet, ou num firewall que bloqueia o Google, o PDF saía
+em Helvetica ou Arial sem aviso nenhum. Os quatro arquivos que o Google entregava
+ao WeasyPrint estão agora em `configs/fontes/` (licença SIL OFL, que permite
+distribuir). O PDF da edição de 28/09 refeito com eles saiu idêntico ao anterior,
+pixel por pixel, nas 15 páginas.
+
+**Outros computadores.** O que prendia o programa ao Mac:
+
+- **A trava de execução chamava `os.kill(pid, 0)`**, que no Mac e no Linux só
+  pergunta se o processo existe. No Windows, o sinal 0 é Ctrl+C e qualquer outro
+  número encerra o processo. O Windows agora pergunta ao sistema pelo processo.
+- **O fuso de Brasília** vem do sistema no Mac e no Linux. O Windows não tem esse
+  banco: entrou o pacote `tzdata`.
+- **As bibliotecas do PDF** (pango, cairo, harfbuzz) não vêm do `pip`. Cada sistema
+  tem uma receita no README: conda no Mac, MSYS2 no Windows, `apt` no Linux. O
+  WeasyPrint deixou de ser importado na abertura do programa. Sem as bibliotecas,
+  o programa diz o comando do sistema e para antes de gastar, em vez de quebrar em
+  `import main` com um erro de `.dll`.
+- **O terminal do Cursor** abria com o venv ativo só no Mac. Agora abre assim nos
+  três. No Windows, o PowerShell do projeto contorna só para si a política de
+  scripts, sem mudar nada na máquina.
+- **Acentos e símbolos no Windows**, com a saída redirecionada, quebravam no
+  primeiro ⛔ (página de código cp1252). A saída passou a ser UTF-8.
+
+`python conferir_instalacao.py` confere tudo isso em qualquer computador, sem
+gastar: o Python (e o Python de Intel num Mac de chip Apple), as bibliotecas, o
+fuso, um PDF de teste com a fonte embutida, o Chrome abrindo uma página local, o
+Google Notícias, a chave (pela consulta gratuita) e os testes. Neste Mac ele
+passou com Python 3.12 e com 3.10 (o do Ubuntu 22.04). Para os sistemas que não
+há aqui, o workflow do GitHub (`.github/workflows/instalacao.yml`) instala o
+projeto do zero, pela receita do README, em Windows, Ubuntu 22.04 e 24.04 e Mac,
+e roda o mesmo script. O cabeçalho dele diz o que não cobre.
+
+A mesma revisão independente pegou ainda: os testes quebrando no Windows quando a
+saída vai para um arquivo (os símbolos ⛔ e ✏️ não existem na página de código
+do Windows); o pacote `libharfbuzz-subset0`, que não existe no Ubuntu 22.04 e,
+pedido junto com os outros, fazia o `apt` desistir de todos; datas de página com
+fuso escrito "-0300", que o Python 3.10 não lê; e o PDF aberto no Acrobat, que no
+Windows impede a regravação e terminava num erro cru.
+
 ## Testes
 
 Os três arquivos em `tests/` chamavam `classify_items` e `summarize_items`,

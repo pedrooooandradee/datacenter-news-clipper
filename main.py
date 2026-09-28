@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from dotenv import load_dotenv
 from services.utils.get_search_results import get_search_results
 from services.classifier import (
@@ -23,9 +23,13 @@ from services.deduplicator import (
     deduplicate_by_summary, prune_clusters_before_scrape,
     promover_reservas, descartar_reservas,
 )
-from services.pdf_builder import build_pdf
-from services.utils.archive import archive_raw, edicao_anterior, url_chave
-from services.utils.projeto import modelo, sem_credito, descrever_erro, SemCredito
+from services.pdf_builder import build_pdf, carregar_weasyprint, PDFIndisponivel
+from services.utils.archive import (
+    archive_raw, edicao_anterior, url_chave, DIAS_DA_QUINZENAL, SEMANAL, QUINZENAL,
+)
+from services.utils.projeto import (
+    modelo, sem_credito, descrever_erro, SemCredito, preparar_terminal,
+)
 from services.utils.datetime_utils import dia_local
 from services.utils import cache
 from services.utils import trava
@@ -186,19 +190,26 @@ def drop_failed_and_stale(items, days: int = 7):
 #   had stopped two editions back stretched the window to 21 days and compared the
 #   repeats against the stale edition, so the two editions sent from another
 #   computer came back, whole, under a three-week header.
-# - Google News returns at most 100 entries per query, and the two busiest queries
-#   already fill them within 7 days (81 and 80 of 100). A 14-day window recovers
-#   almost nothing of a skipped week in exactly the queries that matter.
+# - The search then asked Google for no dates, got about 100 entries mixing weeks,
+#   and a 14-day window recovered little of the skipped week. (The search now asks
+#   for its dates, a week at a time, so this second reason is gone; the first
+#   one is enough.)
 #
-# So a skipped week is not recovered, and the program says so instead of promising
-# otherwise. A run one to three days late is: those days are few, and still fit.
+# So nothing is stretched because of a gap in the local archive. A run one to
+# three days late is: those days are few. Two weeks are covered when someone asks
+# for them, with --quinzenal.
 JANELA_PADRAO = 7
 ATRASO_TOLERADO = 3
 
 
-def janela_desta_edicao(agora=None):
+def janela_desta_edicao(agora=None, quinzenal: bool = False):
     """
     Days this edition covers, and a line explaining why.
+
+    A fortnightly edition is asked for by name (--quinzenal): the company has
+    sent them on purpose, over the year-end holidays and Carnival, and the Drive
+    files them as "Clipping Atualização Quinzenal". It is a decision, never
+    something the program infers from a gap in the archive (see the note above).
 
     The line starts with ⚠️ when the last edition on this computer is too old to
     be the real previous one: either a week was skipped or editions went out from
@@ -211,24 +222,69 @@ def janela_desta_edicao(agora=None):
                               or [JANELA_PADRAO])
     except (OSError, ValueError):
         configurado = JANELA_PADRAO
+    pedido = max(configurado, DIAS_DA_QUINZENAL) if quinzenal else configurado
+    tipo = "edição quinzenal (--quinzenal)" if quinzenal else "edição semanal"
 
     nome, _ = edicao_anterior(agora)
     if not nome:
-        return configurado, "não há edição anterior neste computador — janela padrão"
+        return pedido, f"{tipo}; não há edição anterior neste computador"
 
     dias = (agora.date() - datetime.strptime(nome, "%Y-%m-%d").date()).days
-    if dias <= configurado:
-        return configurado, f"a última edição é de {nome}"
-    if dias <= configurado + ATRASO_TOLERADO:
-        return dias, (f"a última edição foi há {dias} dias ({nome}); a janela vai até "
-                      f"ela, para os dias de atraso não se perderem")
-    return configurado, (
+    if quinzenal and dias < DIAS_DA_QUINZENAL - ATRASO_TOLERADO:
+        return pedido, (
+            f"⚠️  edição quinzenal, mas a última edição é de {nome}, há só {dias} dias:\n"
+            f"     esta repete a semana dela. As mesmas URLs são retiradas; o mesmo fato "
+            f"em outro veículo, não. Confira na revisão")
+    if dias <= pedido:
+        return pedido, f"{tipo}; a última edição é de {nome}"
+    if dias <= pedido + ATRASO_TOLERADO:
+        return dias, (f"{tipo}; a última edição foi há {dias} dias ({nome}), e a janela "
+                      f"vai até ela para os dias de atraso não se perderem")
+    dica = "" if quinzenal else "; para cobrir duas semanas, --quinzenal"
+    return pedido, (
         f"⚠️  a última edição NESTE COMPUTADOR é de {nome}, há {dias} dias.\n"
-        f"     Se uma semana foi pulada: o que saiu nela NÃO entra nesta edição "
-        f"(a janela fica em {configurado} dias).\n"
+        f"     Se uma edição foi pulada: o que saiu no intervalo NÃO entra nesta "
+        f"(a janela fica em {pedido} dias{dica}).\n"
         f"     Se houve edições enviadas de outro computador: pare agora (Ctrl+C) e "
         f"copie a pasta delas para output/archive/ — sem isso, notícias que o "
         f"cliente já recebeu podem voltar")
+
+
+def desde_para_o_nome(inicio_janela: date, quinzenal: bool = False, agora=None) -> date:
+    """
+    The first date in the Drive file name.
+
+    It is the previous edition's day, the way the files have always been named
+    by hand — the edition of 14/09 is "(08_09 - 14_09 …)", after the Tuesday
+    edition of 08/09 — when that edition is plausibly the real previous one: a
+    week back (a fortnight for --quinzenal), give or take ATRASO_TOLERADO days.
+    Otherwise, with no previous edition or a stale archive, it is the first day
+    searched.
+    """
+    agora = agora or datetime.now()
+    nome, _ = edicao_anterior(agora)
+    if nome:
+        anterior = datetime.strptime(nome, "%Y-%m-%d").date()
+        esperado = DIAS_DA_QUINZENAL if quinzenal else JANELA_PADRAO
+        if abs((agora.date() - anterior).days - esperado) <= ATRASO_TOLERADO:
+            return anterior
+    return inicio_janela
+
+
+def verificar_pdf() -> bool:
+    """
+    Whether the PDF can be drawn on this computer, checked before anything is paid.
+
+    WeasyPrint needs system libraries that pip does not install, and each system
+    installs them differently. A computer without them used to find out at the
+    very end, after half an hour and the API bill.
+    """
+    try:
+        carregar_weasyprint()
+    except PDFIndisponivel as e:
+        print(f"⛔ {e}\n   Nada foi gasto.")
+        return False
+    return True
 
 
 def verificar_modelos(cliente=None) -> bool:
@@ -251,7 +307,8 @@ def verificar_modelos(cliente=None) -> bool:
         chave = os.getenv("OPENAI_API_KEY")
         if not chave:
             print("⛔ Não há OPENAI_API_KEY no arquivo .env. Nada foi gasto.\n"
-                  "   Crie o .env a partir do molde (cp .env.example .env) e ponha a chave.")
+                  "   Faça uma cópia do arquivo .env.example com o nome .env e ponha a "
+                  "chave nela.")
             return False
         cliente = openai.OpenAI(api_key=chave)
 
@@ -366,12 +423,18 @@ def parse_args():
     )
     parser.add_argument("--list-cache", action="store_true",
                         help="Mostra o que há em cache e sai.")
+    parser.add_argument(
+        "--quinzenal", action="store_true",
+        help="Edição de duas semanas (14 dias), como nas festas de fim de ano. "
+             "O PDF sai como 'Clipping Atualização Quinzenal'.",
+    )
     parser.add_argument("--clear-cache", action="store_true",
                         help="Apaga todo o cache e sai.")
     return parser.parse_args()
 
 
 def main():
+    preparar_terminal()
     args = parse_args()
 
     if args.list_cache:
@@ -477,17 +540,18 @@ def _executar(args):
     start = args.from_stage or STAGES[0]
     start_idx = STAGES.index(start)
 
-    # Every stage up to dedup calls the OpenAI API. Find out now, for free,
-    # whether the key and the models answer — not after the search and the scrape.
+    # Free checks first: whether this computer can draw the PDF, and whether the
+    # key and the models answer. Every stage up to dedup calls the OpenAI API,
+    # and all of them come before the PDF.
+    if not verificar_pdf():
+        return
     if start_idx <= STAGES.index("dedup") and not verificar_modelos():
         return
 
-    janela, porque = janela_desta_edicao()
-    inicio = (datetime.now() - timedelta(days=janela)).strftime("%d/%m")
-    if porque.startswith("⚠️"):
-        print(f"📅 Janela desta edição: de {inicio} até hoje ({janela} dias).\n{porque}.")
-    else:
-        print(f"📅 Janela desta edição: de {inicio} até hoje ({janela} dias) — {porque}.")
+    tipo = QUINZENAL if args.quinzenal else SEMANAL
+    janela, porque = janela_desta_edicao(quinzenal=args.quinzenal)
+    inicio = date.today() - timedelta(days=janela)
+    desde = desde_para_o_nome(inicio, quinzenal=args.quinzenal)
 
     def runs(stage: str) -> bool:
         """True when this stage should actually execute rather than come from cache."""
@@ -505,6 +569,37 @@ def _executar(args):
                   f"Rode sem --from para uma execução completa.")
             return
         items, _ = loaded
+        # The cached stories came from a search with its own window and kind.
+        # Rebuilding them under other ones would print "Semanal" over a
+        # fortnight's news, or — run a week later — "Quinzenal" over one week's,
+        # so the edition's first day, its "since" date and its kind travel with
+        # the cache. (Its closing date is still today: see LEIA-ME, --from.)
+        salva = cache.edicao_salva(previous)
+        if salva:
+            inicio, desde, tipo = salva["inicio_janela"], salva["desde"], salva["tipo"]
+            janela = (date.today() - inicio).days
+            porque = f"{tipo.lower()}, a da busca guardada no cache"
+            if args.quinzenal and tipo != QUINZENAL:
+                print("⚠️  --quinzenal ignorado: o cache veio de uma busca semanal. Para "
+                      "uma quinzenal, rode sem --from.")
+        elif args.quinzenal:
+            # A cache written before the window was recorded is always weekly.
+            print("⚠️  --quinzenal ignorado: este cache é anterior ao registro da janela "
+                  "e veio de uma busca semanal. Para uma quinzenal, rode sem --from.")
+            tipo = SEMANAL
+            janela, porque = janela_desta_edicao(quinzenal=False)
+            inicio = date.today() - timedelta(days=janela)
+            desde = desde_para_o_nome(inicio)
+
+    if porque.startswith("⚠️"):
+        print(f"📅 Janela desta edição: de {inicio:%d/%m} até hoje ({janela} dias).\n{porque}.")
+    else:
+        print(f"📅 Janela desta edição: de {inicio:%d/%m} até hoje ({janela} dias) — {porque}.")
+
+    edicao = {"inicio_janela": inicio, "desde": desde, "tipo": tipo}
+
+    def guardar(stage: str, conteudo, impressao: str) -> None:
+        cache.save(stage, conteudo, impressao, edicao=edicao)
 
     # 1-3) Fetch RSS results and deduplicate by URL
     if runs("search"):
@@ -569,7 +664,7 @@ def _executar(args):
         if not items:
             print("No items left after the source gate. Exiting.")
             return
-        cache.save("search", items, fingerprint("search"))
+        guardar("search", items, fingerprint("search"))
 
     # 4-5) Classify and keep only the relevant items
     if runs("classify"):
@@ -583,14 +678,14 @@ def _executar(args):
         # record of the calls it got wrong.
         discarded = [i for i in annotated if i.get("class", "").lower() != "relevant"]
         if discarded:
-            cache.save("classify_descartadas", discarded, fingerprint("classify"))
+            guardar("classify_descartadas", discarded, fingerprint("classify"))
             print(f"   {len(discarded)} descartadas, registradas em "
                   f"output/cache/classify_descartadas.json para revisão")
 
         if not items:
             print("No relevant articles. Exiting.")
             return
-        cache.save("classify", items, fingerprint("classify"))
+        guardar("classify", items, fingerprint("classify"))
 
     # 6) Scrape article bodies, then drop what failed to fetch or is genuinely old
     if runs("scrape"):
@@ -610,7 +705,7 @@ def _executar(args):
         if not items:
             print("No usable articles after scraping. Exiting.")
             return
-        cache.save("scrape", items, fingerprint("scrape"))
+        guardar("scrape", items, fingerprint("scrape"))
 
     # 7) Summarize, then drop what came back without a usable paragraph
     if runs("summarize"):
@@ -620,7 +715,7 @@ def _executar(args):
         if not items:
             print("Nenhum resumo aproveitável. Encerrando.")
             return
-        cache.save("summarize", items, fingerprint("summarize"))
+        guardar("summarize", items, fingerprint("summarize"))
 
     # 8) The structured record: final category decided with the summary in hand,
     #    figures copied from the body, ratios computed in Python
@@ -631,13 +726,13 @@ def _executar(args):
         # because this is the last stage that needs it.
         for item in items:
             item.pop("body", None)
-        cache.save("ficha", items, fingerprint("ficha"))
+        guardar("ficha", items, fingerprint("ficha"))
 
     # 9) Remove duplicate coverage based on summary similarity
     if runs("dedup"):
         items = deduplicate_by_summary(items)
         print(f"Final count after semantic deduplication: {len(items)} items")
-        cache.save("dedup", items, fingerprint("dedup"))
+        guardar("dedup", items, fingerprint("dedup"))
 
     for item in items:
         if 'highlight' not in item:
@@ -657,7 +752,7 @@ def _executar(args):
     print(f"Wrote clippings JSON to {output_file}")
 
     # 10b) Freeze the raw output, before anyone edits clippings.json by hand
-    archive_raw(items, janela_dias=janela)
+    archive_raw(items, inicio_janela=inicio, desde=desde, tipo=tipo)
 
     # 11) Apply configs/overrides.json and generate the PDF
     pdf_path = build_pdf()

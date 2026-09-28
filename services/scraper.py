@@ -340,6 +340,13 @@ def _parse_date(value: str) -> Optional[datetime]:
     if not value:
         return None
     text = value.strip().replace("Z", "+00:00")
+    # Before Python 3.11, fromisoformat only read its own output: an offset
+    # written "-0300" or a fraction of 3 digits sent the date to the fallback
+    # below, which keeps only the day. Normalised here, so every supported
+    # Python reads the same instant.
+    text = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", text)
+    text = re.sub(r"(\.\d{1,6})(?=[+-]\d{2}:\d{2}$|$)",
+                  lambda m: m.group(1).ljust(7, "0"), text)
     so_o_dia = bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", text))
     try:
         dt = datetime.fromisoformat(text)

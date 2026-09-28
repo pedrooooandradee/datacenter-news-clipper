@@ -63,6 +63,24 @@ def modelo(etapa: str) -> str:
     return _MODELOS.get(etapa, padrao)
 
 
+def preparar_terminal() -> None:
+    """
+    Make the terminal accept the program's accents and symbols on any system.
+
+    The program prints ⛔, 🚨, "notícias" and "às". A Mac or Linux terminal
+    takes them as they are. On Windows, when the output is redirected to a file
+    or a pipe, Python writes in the old Windows code page (cp1252), which has no
+    ⛔, and the run stops with UnicodeEncodeError on its first warning. UTF-8
+    with replacement never stops a run over a character.
+    """
+    import sys
+    for fluxo in (sys.stdout, sys.stderr):
+        try:
+            fluxo.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 class SemCredito(RuntimeError):
     """
     The OpenAI account has no credit left. Every further call fails the same way.

@@ -29,16 +29,19 @@ proposals behind some of the rules, kept for the record.
 **Do this section ONCE, on the computer that will run the clipping.** About 20
 minutes, most of it waiting for downloads.
 
-> **Mac only.** Every step below has been tested on macOS. There is no tested
-> route for Windows: the part that draws the PDF (WeasyPrint) needs system
-> libraries that are installed differently there. If the clipping has to run on
-> Windows, that route has to be written and tested first.
+It runs on **Mac, Windows and Linux**. The only step that differs is Step 3: the
+part that draws the PDF (WeasyPrint) needs system libraries that `pip` cannot
+install, and each system installs them its own way. The Mac route was tested
+from scratch by hand. On every change to the code, a GitHub workflow
+(`.github/workflows/instalacao.yml`) installs the project from scratch following
+these steps on Windows, Ubuntu 22.04 and 24.04, and an Apple-chip Mac, and runs
+Step 6 there; its header says what it does not cover.
 
 ## Setup Steps Index
 
-1. [Install the tools (Git, Chrome, conda)](#step-1-install-the-tools)
+1. [Install the tools](#step-1-install-the-tools)
 2. [Download the project](#step-2-download-the-project)
-3. [Create the Python environment](#step-3-create-the-python-environment)
+3. [Create the Python environment](#step-3-create-the-python-environment) — one route per system
 4. [Install the libraries](#step-4-install-the-libraries)
 5. [Configure the .env file](#step-5-configure-the-env-file)
 6. [Check that everything works](#step-6-check-that-everything-works)
@@ -47,64 +50,41 @@ minutes, most of it waiting for downloads.
 
 ## Step 1: Install the tools
 
-Open the **Terminal** app (Applications → Utilities → Terminal). Every command
-below is typed there.
+Every command below is typed in a terminal: **Terminal** on a Mac (Applications
+→ Utilities), **PowerShell** on Windows (Start menu → "PowerShell"), the terminal
+on Linux. Once Cursor is installed, its own terminal (Terminal → New Terminal)
+works just as well.
 
-### Git
+| Tool | Mac | Windows | Linux (Ubuntu/Debian) |
+|---|---|---|---|
+| **Git** | `git --version`; if macOS offers the "command line developer tools", accept | [git-scm.com/download/win](https://git-scm.com/download/win), defaults | `sudo apt install git` |
+| **Google Chrome** | [google.com/chrome](https://www.google.com/chrome/) | [google.com/chrome](https://www.google.com/chrome/) | the `.deb` from [google.com/chrome](https://www.google.com/chrome/) |
+| **Python 3.12** | comes with conda in Step 3 | [python.org/downloads](https://www.python.org/downloads/) — 3.12, and tick **"Add python.exe to PATH"** | `python3 --version` must say 3.10 or more; `sudo apt install python3-venv` |
+| **PDF libraries** | conda, Step 3 | MSYS2, Step 3 | `apt`, Step 3 |
 
-```bash
-git --version
-```
-
-If a version number appears, you have it. If macOS offers to install the
-"command line developer tools", accept — that is how Git arrives on a Mac.
-
-### Google Chrome
-
-The collection stage opens each article in an invisible Chrome. **Chrome has to
-be installed** — download it from [google.com/chrome](https://www.google.com/chrome/)
-if it is not already there. The piece that lets the program drive Chrome is
-downloaded automatically the first time it runs.
-
-### conda (through Miniforge)
-
-**Why?** The program draws the PDF with WeasyPrint, which needs two system
-libraries, `pango` and `cairo`, that Python's `pip` cannot install. conda can.
-It also brings its own Python 3.12 — a new Mac comes with Python 3.9, and the
-libraries this project uses need 3.10 or newer.
-
-If `conda --version` already prints a number (Anaconda or Miniconda installed),
-skip this — Step 3 takes care of the one trap an existing Anaconda can set.
-Otherwise, install Miniforge:
-
-```bash
-curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
-bash Miniforge3-$(uname)-$(uname -m).sh
-```
-
-Answer `yes` to the licence and to "initialize conda". Then **close the Terminal
-and open it again**, and check:
-
-```bash
-conda --version
-```
-
-> **Why not Homebrew?** Earlier versions of this README used Homebrew. That route
-> was never tested on a machine other than the one the program was written on,
-> and on a new Mac it fails: `python3` there is 3.9. One route, tested, is better
-> than two where one is broken. (The environment that runs the clipping today was
-> built with exactly the conda command in Step 3.)
+Chrome has to be installed: the collection stage opens each article in an
+invisible Chrome. The piece that lets the program drive it is downloaded
+automatically the first time.
 
 ---
 
 ## Step 2: Download the project
 
-Go to the folder where you keep projects — **not iCloud Drive, not Dropbox**:
-those sync file by file and corrupt the project's history. A folder like
-`~/dev` is ideal:
+Go to the folder where you keep projects — **not iCloud Drive, OneDrive or
+Dropbox**: those sync file by file and corrupt the project's history.
+
+Mac and Linux:
 
 ```bash
 mkdir -p ~/dev && cd ~/dev
+git clone https://github.com/pedrooooandradee/datacenter-news-clipper.git
+cd datacenter-news-clipper
+```
+
+Windows (PowerShell):
+
+```powershell
+mkdir $HOME\dev -Force; cd $HOME\dev
 git clone https://github.com/pedrooooandradee/datacenter-news-clipper.git
 cd datacenter-news-clipper
 ```
@@ -116,57 +96,106 @@ version 1 and is no longer maintained — do not clone that one.
 
 ## Step 3: Create the Python environment
 
-Two layers. First a conda environment that holds Python 3.12 and the PDF
-libraries — once per computer.
+A virtual environment (`venv`) inside the project folder, built from a Python
+that can see the PDF libraries. Follow **only your system's** block.
 
-**Which chip does the Mac have?**  menu → About This Mac. "Chip: Apple M1" (or
-M2, M3…) is Apple; "Processor: Intel" is Intel. Almost every Mac from 2021 on is
-Apple.
+### Mac
+
+conda brings Python 3.12 and the PDF libraries together — a new Mac comes with
+Python 3.9, too old for this project. If `conda --version` already prints a
+number, skip the installer. Otherwise install Miniforge:
+
+```bash
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+```
+
+Answer `yes` to the licence and to "initialize conda", then **close the Terminal
+and open it again**. Which chip? Apple menu → About This Mac: "Chip: Apple M1"
+(or M2, M3…) is Apple; "Processor: Intel" is Intel.
 
 ```bash
 CONDA_SUBDIR=osx-arm64 conda create -y -p ~/.clipping247-python --override-channels -c conda-forge python=3.12 pango cairo gdk-pixbuf libffi
+~/.clipping247-python/bin/python3 -m venv venv
+source venv/bin/activate
 ```
 
 On an **Intel** Mac, drop the `CONDA_SUBDIR=osx-arm64` at the start.
 
-> **Why `CONDA_SUBDIR=osx-arm64`?** Found on 28 Sep 2026, testing this very
-> recipe from scratch. An Anaconda installed for Intel — common, even on Apple
-> Macs — builds Intel environments by default. Python then runs translated
-> (Rosetta), everything installs and every test passes, and the Chrome it drives
-> freezes on every heavy news page: 30-second timeouts on Valor and G1, which the
-> Apple build opens in under a second. The prefix forces the Apple build.
+> **Why `CONDA_SUBDIR=osx-arm64`?** Found on 28 Sep 2026, testing this recipe
+> from scratch. An Anaconda installed for Intel — common, even on Apple Macs —
+> builds Intel environments by default. Python then runs translated (Rosetta),
+> everything installs and every test passes, and the Chrome it drives freezes on
+> every heavy news page. The prefix forces the Apple build. Step 6 checks it.
 
-Then, inside the project folder, a virtual environment (`venv`) built **from
-that Python** — this is the step that makes the PDF libraries visible:
+### Windows
+
+The PDF libraries come from **MSYS2**. Install it from [msys2.org](https://www.msys2.org/)
+with the default folder, `C:\msys64`. Then open **"MSYS2 UCRT64"** from the Start
+menu (not PowerShell) and run:
 
 ```bash
-~/.clipping247-python/bin/python3 -m venv venv
-source venv/bin/activate
-python --version
-python -c "import platform; print(platform.machine())"
+pacman -S --noconfirm mingw-w64-ucrt-x86_64-pango
 ```
 
-The prompt now starts with `(venv)`, and the two last lines have to print:
+Close that window. Back in PowerShell, in the project folder:
 
-- **Python 3.12.something.** If it prints 3.9, the venv was built from the Mac's
-  own Python: delete the `venv` folder and repeat the block above.
-- **arm64**, on an Apple Mac (`x86_64` on an Intel one). `x86_64` on an Apple Mac
-  means the conda environment was built for Intel: delete both
-  `~/.clipping247-python` and `venv`, and repeat from the conda command.
+```powershell
+py -3.12 -m venv venv
+venv\Scripts\Activate.ps1
+```
+
+If PowerShell refuses with "running scripts is disabled on this system", run
+this once — it only allows scripts you created yourself, for your user — and
+activate again:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+MSYS2 in another folder? Put its `ucrt64\bin` in the `.env` (Step 5):
+`WEASYPRINT_DLL_DIRECTORIES=D:\msys64\ucrt64\bin`.
+
+### Linux (Ubuntu or Debian)
+
+```bash
+sudo apt install libpango-1.0-0 libpangoft2-1.0-0 python3-venv
+python3 -m venv venv
+source venv/bin/activate
+```
+
+On Ubuntu 24.04 or Debian 12 and newer, also install `libharfbuzz-subset0`
+(`sudo apt install libharfbuzz-subset0`). It does not exist on Ubuntu 22.04 or
+Debian 11: skip it there, the PDF works without it. Other distributions: the same
+libraries under their own package names (pango, pangoft2).
+
+### All systems
+
+The prompt now starts with `(venv)`. Check the version:
+
+```bash
+python --version
+```
+
+It has to be 3.10 or newer (3.12 recommended). Anything older: delete the `venv`
+folder and repeat your block with the right Python.
 
 ---
 
 ## Step 4: Install the libraries
+
+With `(venv)` showing:
 
 ```bash
 pip install -r requirements.lock.txt
 ```
 
 `requirements.lock.txt` holds the **exact versions** that produced real
-editions. `requirements.txt` holds only the minimum versions and would pull
-whatever is newest on the day you install — combinations nobody has tested. If
-something breaks after a reinstall, reinstall from the lock before touching any
-code.
+editions; every one of them has a ready-made package for Windows, Linux and Mac,
+so nothing is compiled. `requirements.txt` holds
+only the minimum versions and would pull whatever is newest on the day you
+install — combinations nobody has tested. If something breaks after a
+reinstall, reinstall from the lock before touching any code.
 
 It downloads about 80 packages. That is normal, and `venv/` is not in the
 repository.
@@ -175,17 +204,17 @@ repository.
 
 ## Step 5: Configure the .env file
 
-The `.env` file holds the OpenAI key — the program pays for its AI calls with it
-(about US$ 0.20 per edition). It is never in the repository. Create it from the
-template:
+The `.env` file holds the OpenAI key — the program pays for its AI calls with it.
+It is never in the repository. Create it from the template:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and replace the placeholder with the key. The key comes from the
-**company's OpenAI account** (organisation `elementum3`), created by whoever
-administers it — never a personal key, which stops working when its owner leaves.
+(Windows: `copy .env.example .env`.) Open `.env` and replace the placeholder with
+the key. The key comes from the **company's OpenAI account** (organisation
+`elementum3`), created by whoever administers it — never a personal key, which
+stops working when its owner leaves.
 
 **CRITICAL:** Never share this file with anyone. It's connected to a credit card
 and costs money every time it's used.
@@ -195,15 +224,20 @@ and costs money every time it's used.
 ## Step 6: Check that everything works
 
 ```bash
-python -m unittest discover -s tests
+python conferir_instalacao.py
 ```
 
-It has to end in `OK`. It is free and needs no internet. If it fails, the
-installation is wrong somewhere — do not run the clipping.
+It checks, on this computer and without spending anything: the Python, the
+libraries, the time zone, a test PDF drawn with the right font, Chrome opening a
+page, Google News answering, the OpenAI key (with the free model lookup) and the
+tests. Every line has to show ✅; a ⛔ says what to fix. It ends with "Tudo certo
+neste computador".
 
 Then open the project in **Cursor** (File → Open Folder → the project folder).
 The free plan is enough: the program runs in the terminal, and Cursor's AI is not
-needed. VS Code or the plain Terminal work just as well.
+needed. VS Code or a plain terminal work just as well. The repository's settings
+(`.vscode/`) open every new Cursor terminal with the venv already active, on all
+three systems.
 
 You are ready. The day-to-day guide is `LEIA-ME.md`.
 
@@ -211,14 +245,19 @@ You are ready. The day-to-day guide is `LEIA-ME.md`.
 
 ## Setup Troubleshooting
 
+`python conferir_instalacao.py` names most problems. The ones it cannot reach:
+
 | Problem | Solution |
 |---|---|
-| `conda: command not found` | Close and reopen the Terminal after installing Miniforge. Still missing: install again and answer `yes` to "initialize conda" |
-| `python --version` says 3.9 inside the venv | The venv was built from the Mac's Python. Delete `venv/` and repeat Step 3 exactly |
-| `No module named '...'` | The venv is not active (`source venv/bin/activate`), or Step 4 was skipped |
-| `cannot load library 'libpango-1.0-0'` | The venv was not built from `~/.clipping247-python/bin/python3`. Delete `venv/` and repeat Step 3 |
-| `pip install` fails compiling something | Almost always the wrong Python (3.9). Check with `python --version` |
-| Almost every page is listed as "descartadas por falha de coleta", with `timeout no carregamento` or `TimeoutException` | The environment is Intel on an Apple Mac. `python -c "import platform; print(platform.machine())"` says `x86_64`. Redo Step 3 with `CONDA_SUBDIR=osx-arm64` |
+| `conda: command not found` (Mac) | Close and reopen the Terminal after installing Miniforge. Still missing: install again and answer `yes` to "initialize conda" |
+| "py is not recognized" (Windows) | The py launcher was not installed. Run the python.org installer again, choose Modify, and tick "py launcher". Or, if `python --version` says 3.12, use `python -m venv venv` instead |
+| `python` opens the Microsoft Store (Windows) | Python was installed without "Add python.exe to PATH". Run the python.org installer again, choose Modify, and tick it |
+| "running scripts is disabled" (Windows) | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then activate again |
+| `python --version` says 3.9 inside the venv | The venv was built from an old Python. Delete `venv/` and repeat Step 3 |
+| `No module named '...'` | The venv is not active (Mac/Linux `source venv/bin/activate`, Windows `venv\Scripts\Activate.ps1`), or Step 4 was skipped |
+| "A parte que desenha o PDF (WeasyPrint) não carregou" | The PDF libraries of Step 3 are missing. The message says which command installs them on this system |
+| `pip install` fails compiling something | Almost always a Python older than 3.10. Check with `python --version` |
+| ⛔ "Python … de Intel num Mac com chip Apple" | Redo the Mac block of Step 3 with `CONDA_SUBDIR=osx-arm64` |
 
 ---
 
@@ -229,16 +268,14 @@ short version, and it is deliberately short: everything below has a longer
 explanation there, and duplicating it is how the two drift apart.
 
 Every command is run from a terminal, with the venv active. In Cursor or VS
-Code: **Terminal → New Terminal**, then:
+Code, **Terminal → New Terminal** already opens with `(venv)` at the start of the
+line, on Mac, Windows and Linux. If it does not, activate it:
 
-```bash
-source venv/bin/activate
-```
+- Mac and Linux: `source venv/bin/activate`
+- Windows (PowerShell): `venv\Scripts\Activate.ps1`
 
-The prompt starts showing `(venv)`. In Cursor and VS Code the repository's own
-settings (`.vscode/`) already open every new terminal with the venv active — if
-`(venv)` is there, skip the command above. There is no Run button: everything
-runs from the terminal.
+There is no Run button: everything runs from the terminal. The commands are the
+same on every system.
 
 Every full run also saves everything it printed to `output/logs/`, so the
 warnings can be read again after the terminal is closed.
@@ -250,6 +287,7 @@ warnings can be read again after the terminal is closed.
 | `python main.py` | The full edition: search, classify, scrape, summarise, extract, deduplicate, PDF | **Money and 10–30 minutes.** Only with authorisation |
 | `python services/pdf_builder.py` | Rebuilds only the PDF from what is already in `output/` | Free, seconds |
 | `python -m unittest discover -s tests` | The tests of the rules that decide what the investor reads | Free, no network |
+| `python conferir_instalacao.py` | Checks that this computer can run the clipping | Free, seconds |
 
 A full run cost US$ 0.20 and took 13 minutes on the 22 Sep 2026 edition
 (56 articles).
@@ -272,7 +310,8 @@ needed a correction and none of those errors showed up in the terminal.
 
 ## Your results
 
-- **PDF:** `output/clippings_output.pdf`
+- **PDF:** `output/AAAA.MM.DD Clipping Atualização Semanal (DD_MM - DD_MM às HhMM).pdf`
+  — the name the Drive folder "Clippings Semanais" uses, ready to upload
 - **Data:** `output/clippings.json` (and the previous version in
   `output/clippings.anterior.json`)
 - **Archive:** `output/archive/<date>/` — kept out of the repository; it holds
@@ -284,10 +323,10 @@ needed a correction and none of those errors showed up in the terminal.
 
 | Problem | Solution |
 |---|---|
-| `No module named '...'` | The venv is not active. `source venv/bin/activate` |
-| `cannot load library 'libpango-1.0-0'` | Step 3. The venv was not built from `~/.clipping247-python/bin/python3` |
+| `No module named '...'` | The venv is not active (see above) |
+| "A parte que desenha o PDF (WeasyPrint) não carregou" | Step 3 of your system |
 | Any line starting with `⛔` | `LEIA-ME.md`, "Quando quebrar", lists each one and what to do. Most stop before anything is paid |
-| `(venv)` not showing | Run `source venv/bin/activate` from the project folder |
+| `(venv)` not showing | Activate it (see above), from the project folder |
 | PDF has no logo in the header | `configs/247.original.jpg` was deleted. `git checkout configs/247.original.jpg` |
 | PDF generation fails | `configs/clipping_template.html` is the only file the PDF truly needs; the logo is optional |
 | "Já existe uma execução em andamento" | Another run is going, or one died. `output/execucao.lock` holds the pid |
@@ -298,7 +337,7 @@ needed a correction and none of those errors showed up in the terminal.
 
 - **`.env`**: main folder, next to `main.py` — KEEP PRIVATE
 - **`venv/`**: main folder — created during setup, not in the repository
-- **Output**: `output/clippings.json` and `output/clippings_output.pdf`
+- **Output**: `output/clippings.json` and the PDF, `output/<Drive name>.pdf`
 - **Configuration and prompts**: `configs/`
 - **Corrections that survive a rerun**: `configs/overrides.json`
 

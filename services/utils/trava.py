@@ -32,12 +32,52 @@ TRAVA_PATH = os.path.join(PROJECT_ROOT, "output", "execucao.lock")
 
 
 def _vivo(pid: int) -> bool:
-    """Whether a process with this pid is still running."""
+    """
+    Whether a process with this pid is still running.
+
+    os.kill(pid, 0) asks exactly that on Mac and Linux, and does something else
+    entirely on Windows: signal 0 there is CTRL_C_EVENT, sent to the console,
+    and any other number terminates the process. So Windows asks the kernel
+    for the process and its exit code instead.
+    """
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    if os.name == "nt":
+        return _vivo_windows(pid)
     try:
         os.kill(pid, 0)
-    except (OSError, TypeError):
+    except PermissionError:
+        return True          # it exists; it just belongs to someone else
+    except OSError:
         return False
     return True
+
+
+def _vivo_windows(pid: int) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    STILL_ACTIVE = 259
+    ERROR_ACCESS_DENIED = 5
+
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        # Access denied means the process exists and is someone else's.
+        return ctypes.get_last_error() == ERROR_ACCESS_DENIED
+    try:
+        codigo = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(codigo)):
+            return False
+        return codigo.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def _ler() -> Optional[dict]:

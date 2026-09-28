@@ -3,8 +3,8 @@
 """
 Archiving of weekly editions.
 
-Until now every run overwrote output/clippings.json and output/clippings_output.pdf,
-so no past edition survived. That destroyed the only record of which items a human
+Until now every run overwrote output/clippings.json and the PDF, so no past
+edition survived. That destroyed the only record of which items a human
 judged to be duplicates, irrelevant or important — the ground truth we need to tell
 whether a change to the pipeline actually improved anything.
 
@@ -14,15 +14,18 @@ Two snapshots per edition, in output/archive/YYYY-MM-DD/:
                         Frozen: never overwritten.
   clippings.final.json  what was actually built into the PDF, after manual editing.
                         Overwritten on every rebuild, so it always holds the last one.
-  clipping.pdf          the PDF of that last build.
+  <nome do Drive>.pdf   the PDF of that last build, under the name it is filed with
+                        in the company's Drive (see nome_do_pdf).
 
 The difference between raw and final is the human judgement, captured for free on
 every run.
 """
 
 import os
+import re
 import json
 import shutil
+import unicodedata
 from typing import List, Dict, Optional, Set, Tuple
 from datetime import date, datetime, timedelta
 
@@ -34,7 +37,45 @@ ARCHIVE_DIR = os.path.join(PROJECT_ROOT, "output", "archive")
 
 RAW_NAME = "clippings.raw.json"
 FINAL_NAME = "clippings.final.json"
-PDF_NAME = "clipping.pdf"
+
+# The name the edition is filed under in the company's Drive folder, "Clippings
+# Semanais", copied from the files already there:
+#
+#   2026.09.21 Clipping Atualização Semanal (14_09 - 21_09 às 11h00).pdf
+#   2026.01.05 Clipping Atualização Quinzenal (22_12_2025 - 05_01_2026 às 13h13).pdf
+#
+# The date of the closing; the kind of edition, which is a decision (--quinzenal)
+# and not a count of days; the day of the PREVIOUS edition and the day of this
+# one, with the year only when the two fall in different years; and the time of
+# the closing, with no leading zero on the hour ("9h30").
+#
+# The first date is the previous edition's, not the first day searched. Read off
+# the Drive's own files: the edition of 14/09 is named "(08_09 - 14_09 …)", after
+# the Tuesday edition of 08/09, while its header says "Week 07 Sep". The two only
+# differ when an edition comes out less than a week after the one before.
+DIAS_DA_QUINZENAL = 14
+SEMANAL, QUINZENAL = "Semanal", "Quinzenal"
+PADRAO_DO_NOME = re.compile(r"^\d{4}\.\d{2}\.\d{2} +Clipping Atualização .*\.pdf$")
+
+
+def nome_do_pdf(fechamento: datetime, desde: Optional[date] = None,
+                tipo: Optional[str] = None) -> str:
+    """
+    The Drive file name of the edition closed at `fechamento`.
+
+    `desde` is the previous edition's day (or, with no previous edition, the
+    first day searched). `tipo` is Semanal or Quinzenal; editions recorded before
+    it was stored fall back to counting the days.
+    """
+    desde = desde or (fechamento - timedelta(days=7)).date()
+    fim = fechamento.date()
+    if tipo not in (SEMANAL, QUINZENAL):
+        tipo = QUINZENAL if (fim - desde).days >= DIAS_DA_QUINZENAL else SEMANAL
+    formato = "%d_%m_%Y" if desde.year != fim.year else "%d_%m"
+    return (f"{fechamento:%Y.%m.%d} Clipping Atualização {tipo} "
+            f"({desde.strftime(formato)} - {fim.strftime(formato)} "
+            f"às {fechamento.hour}h{fechamento.minute:02d}).pdf")
+
 
 
 # When the edition was closed — that is, when the pipeline last collected news.
@@ -50,20 +91,44 @@ PDF_NAME = "clipping.pdf"
 EDICAO_PATH = os.path.join(PROJECT_ROOT, "output", "edicao_atual.json")
 
 
-def registrar_edicao(when: datetime, janela_dias: Optional[int] = None) -> None:
+def registrar_edicao(when: datetime, inicio_janela: Optional[date] = None,
+                     desde: Optional[date] = None, tipo: Optional[str] = None) -> None:
     """
-    Record when this edition was closed, and the first day it covers.
+    Record when this edition was closed and what it covers.
 
-    The first day is recorded because the window is not always seven days: a
-    run a few days late stretches it back to the previous edition, so the days
-    in between are not lost. The PDF header has to say which days it covers.
+    inicio_janela — the first day searched, printed in the PDF header;
+    desde, tipo  — the previous edition's day and Semanal/Quinzenal, for the
+                   Drive file name (see nome_do_pdf).
     """
     os.makedirs(os.path.dirname(EDICAO_PATH), exist_ok=True)
     registro = {"fechamento": when.isoformat(timespec="seconds")}
-    if janela_dias:
-        registro["inicio_janela"] = (when - timedelta(days=janela_dias)).date().isoformat()
+    if inicio_janela:
+        registro["inicio_janela"] = inicio_janela.isoformat()
+    if desde:
+        registro["desde"] = desde.isoformat()
+    if tipo:
+        registro["tipo"] = tipo
     with open(EDICAO_PATH, "w", encoding="utf-8") as f:
         json.dump(registro, f)
+
+
+def _registro() -> Dict:
+    try:
+        with open(EDICAO_PATH, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def nome_da_edicao_atual() -> str:
+    """The Drive file name of the edition in output/edicao_atual.json."""
+    registro = _registro()
+    try:
+        desde = date.fromisoformat(registro["desde"])
+    except (KeyError, TypeError, ValueError):
+        desde = inicio_da_janela()
+    return nome_do_pdf(data_da_edicao() or datetime.now(), desde, registro.get("tipo"))
 
 
 def inicio_da_janela() -> Optional[date]:
@@ -138,7 +203,8 @@ def _edition_dir(when: Optional[datetime] = None) -> str:
 
 
 def archive_raw(items: List[Dict], when: Optional[datetime] = None,
-                janela_dias: Optional[int] = None) -> str:
+                inicio_janela: Optional[date] = None, desde: Optional[date] = None,
+                tipo: Optional[str] = None) -> str:
     """
     Freeze the pipeline's raw output for this edition.
 
@@ -152,7 +218,7 @@ def archive_raw(items: List[Dict], when: Optional[datetime] = None,
     when = when or datetime.now()
     # This is the moment the edition was closed; everything downstream dates
     # itself from here rather than from when it happened to run.
-    registrar_edicao(when, janela_dias)
+    registrar_edicao(when, inicio_janela, desde, tipo)
     folder = _edition_dir(when)
     path = os.path.join(folder, RAW_NAME)
 
@@ -192,7 +258,20 @@ def archive_final(json_path: str, pdf_path: str, when: Optional[datetime] = None
     elif os.path.exists(json_path):
         shutil.copy2(json_path, os.path.join(folder, FINAL_NAME))
     if os.path.exists(pdf_path):
-        shutil.copy2(pdf_path, os.path.join(folder, PDF_NAME))
+        # Under the same name as in the Drive, so the archive copy is the file
+        # that gets uploaded, and the two can be compared by name. The folder
+        # keeps only the last build, as clippings.final.json does: a rebuild at
+        # another hour has another name, and two PDFs of one edition side by side
+        # leave nobody sure which was sent.
+        nome = os.path.basename(pdf_path)
+        for antigo in os.listdir(folder):
+            normalizado = unicodedata.normalize("NFC", antigo)
+            if antigo != nome and (antigo == "clipping.pdf" or PADRAO_DO_NOME.match(normalizado)):
+                try:
+                    os.remove(os.path.join(folder, antigo))
+                except OSError:
+                    pass
+        shutil.copy2(pdf_path, os.path.join(folder, nome))
 
     print(f"📦 Edição arquivada em {os.path.relpath(folder, PROJECT_ROOT)}")
     _report_edits(folder)

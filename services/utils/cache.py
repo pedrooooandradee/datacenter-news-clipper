@@ -76,8 +76,16 @@ def file_digest(*paths: str) -> str:
 # Read and write
 # ─────────────────────────────────────────────────────────────────────
 
-def save(stage: str, items: List[Dict], fingerprint: str = "") -> str:
-    """Write a stage's output to the cache. Always called, on every run."""
+def save(stage: str, items: List[Dict], fingerprint: str = "",
+         edicao: Optional[Dict] = None) -> str:
+    """
+    Write a stage's output to the cache. Always called, on every run.
+
+    `edicao` holds what the search was run for: the first day searched
+    (inicio_janela), the previous edition's day (desde) and the kind (tipo,
+    Semanal or Quinzenal). A run resumed with --from reuses them, so an edition
+    rebuilt from its cache keeps its header and its Drive name.
+    """
     os.makedirs(CACHE_DIR, exist_ok=True)
     path = os.path.join(CACHE_DIR, f"{stage}.json")
     payload = {
@@ -87,6 +95,9 @@ def save(stage: str, items: List[Dict], fingerprint: str = "") -> str:
         "count": len(items),
         "items": items,
     }
+    if edicao:
+        payload["edicao"] = {k: (v.isoformat() if hasattr(v, "isoformat") else v)
+                             for k, v in edicao.items()}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2, default=_encode)
     return path
@@ -142,6 +153,19 @@ def load(stage: str, fingerprint: str = "") -> Optional[Tuple[List[Dict], str]]:
         )
 
     return items, created_at
+
+
+def edicao_salva(stage: str) -> Optional[Dict]:
+    """What a cached stage was searched for (see save), or None for older caches."""
+    from datetime import date
+    try:
+        with open(os.path.join(CACHE_DIR, f"{stage}.json"), "r", encoding="utf-8") as f:
+            dados = json.load(f)["edicao"]
+        return {"inicio_janela": date.fromisoformat(dados["inicio_janela"]),
+                "desde": date.fromisoformat(dados["desde"]),
+                "tipo": dados["tipo"] if dados["tipo"] in ("Semanal", "Quinzenal") else "Semanal"}
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def clear(stage: Optional[str] = None) -> None:

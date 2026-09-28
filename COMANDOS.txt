@@ -2,23 +2,35 @@ Clipping 247 - Comandos (terminal do Cursor: menu Terminal > New Terminal)
 Explicação de cada um em LEIA-ME.md
 
 Cada comando está sozinho na linha, para copiar e colar a linha inteira. O que
-ele faz está sempre na linha de cima.
+ele faz está sempre na linha de cima. Os comandos são os mesmos no Mac, no
+Windows e no Linux, menos onde está escrito o contrário.
 
 ─────────────────────────────────────────────────────────────────────────────
 O DIA A DIA
 ─────────────────────────────────────────────────────────────────────────────
 
-1) Ativar o ambiente (só se o terminal não mostrar "(venv)" no início da linha):
+1) Ativar o ambiente (só se o terminal não mostrar "(venv)" no início da linha).
+   Mac e Linux:
 source venv/bin/activate
+   Windows (PowerShell):
+venv\Scripts\Activate.ps1
 
 2) Rodar o clipping completo (busca + IA + PDF).
    SÓ COM AUTORIZAÇÃO DO DONO DO CLIPPING. Gasta dinheiro de API e leva de 10
-   a 30 minutos. Tudo o que aparece no terminal fica salvo em output/logs/:
+   a 30 minutos. Tudo o que aparece no terminal fica salvo em output/logs/.
+   O PDF sai em output/ com o nome da pasta do Drive, pronto para subir:
 python main.py
+
+2b) Edição QUINZENAL (14 dias; festas de fim de ano, Carnaval). Mesma
+    autorização. O PDF sai como "Clipping Atualização Quinzenal":
+python main.py --quinzenal
 
 3) Refazer só o PDF, de graça, em segundos.
    Use depois de mexer em configs/overrides.json:
 python services/pdf_builder.py
+
+4) Conferir se este computador consegue rodar o clipping (de graça):
+python conferir_instalacao.py
 
 ─────────────────────────────────────────────────────────────────────────────
 REFAZER SÓ UMA ETAPA, SEM REPAGAR AS ANTERIORES
@@ -89,34 +101,45 @@ erros aparecia no terminal.
 MONTAR O PROJETO DO ZERO (uma vez só)
 ─────────────────────────────────────────────────────────────────────────────
 
-SÓ MAC. O passo a passo com explicação está no README.md (uns 20 minutos).
-Precisa antes: Git, Google Chrome e conda (Miniforge) instalados.
+Mac, Windows ou Linux. O passo a passo com explicação está no README.md
+(uns 20 minutos). Precisa antes: Git e Google Chrome instalados; no Windows,
+também o Python 3.12 de python.org, marcando "Add python.exe to PATH".
 
-Cria o Python do projeto (Mac com chip Intel: sem o "CONDA_SUBDIR=osx-arm64"
-do começo):
+--- Só o que muda de um sistema para outro: o Python e as bibliotecas do PDF ---
+
+MAC (com conda/Miniforge instalado; Mac com chip Intel: sem o
+"CONDA_SUBDIR=osx-arm64" do começo):
 CONDA_SUBDIR=osx-arm64 conda create -y -p ~/.clipping247-python --override-channels -c conda-forge python=3.12 pango cairo gdk-pixbuf libffi
-
-Monta o venv a partir dele e ativa:
 ~/.clipping247-python/bin/python3 -m venv venv
 source venv/bin/activate
 
-Tem de dizer 3.12:
-python --version
+WINDOWS. Instale o MSYS2 (msys2.org, pasta C:\msys64). No terminal
+"MSYS2 UCRT64" do menu Iniciar, rode:
+pacman -S --noconfirm mingw-w64-ucrt-x86_64-pango
+Depois, no PowerShell, na pasta do projeto:
+py -3.12 -m venv venv
+venv\Scripts\Activate.ps1
+Se o PowerShell recusar ("execução de scripts foi desabilitada"), uma vez só:
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
-Mac com chip Apple: tem de dizer arm64:
-python -c "import platform; print(platform.machine())"
+LINUX (Ubuntu ou Debian):
+sudo apt install libpango-1.0-0 libpangoft2-1.0-0 python3-venv
+Só no Ubuntu 24.04 / Debian 12 ou mais novos (no 22.04 não existe; pule):
+sudo apt install libharfbuzz-subset0
+python3 -m venv venv
+source venv/bin/activate
+
+--- Igual nos três, com "(venv)" no início da linha ---
 
 Instala as bibliotecas nas versões que rodaram:
 pip install -r requirements.lock.txt
 
-Cria o .env; depois abra e ponha a chave da OpenAI da empresa:
+Cria o .env (no Windows: copy .env.example .env); depois abra e ponha a chave
+da OpenAI da empresa:
 cp .env.example .env
 
-Tem de terminar em OK:
-python -m unittest discover -s tests
-
-NÃO use "python3 -m venv venv" com o Python do Mac: ele é o 3.9 e as
-bibliotecas exigem 3.10 ou mais.
+Confere tudo; tem de terminar em "Tudo certo neste computador":
+python conferir_instalacao.py
 
 Computador novo, ou mais de um computador: antes de rodar, copie para
 output/archive/ a pasta da última edição ENVIADA (fica na pasta da empresa).

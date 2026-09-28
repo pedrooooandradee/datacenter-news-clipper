@@ -1,0 +1,4 @@
+# Terminal do Cursor neste projeto, no Linux: carrega o ~/.bashrc normal e depois
+# ativa o venv do projeto. O terminal abre na pasta do projeto.
+[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+[ -f venv/bin/activate ] && . venv/bin/activate

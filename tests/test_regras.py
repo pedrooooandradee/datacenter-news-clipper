@@ -26,7 +26,7 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -44,6 +44,12 @@ from services.deduplicator import (
 from services.scraper import looks_blocked, cortar_no_paywall
 from services.utils.get_search_results import collect_search_results_from_rss
 from services.utils import trava, archive
+from services.utils.projeto import preparar_terminal
+
+# The code under test prints ⛔ and ✏️. On Windows, with the output going to a
+# file or a pipe (as in the GitHub checks), Python would write in cp1252 and
+# stop on the first one.
+preparar_terminal()
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -541,6 +547,8 @@ class JanelaDoFeed(unittest.TestCase):
         self.assertEqual(len(resultados), 3)
         self.assertEqual(descartados, [])
 
+    @unittest.skipUnless(hasattr(__import__("time"), "tzset"),
+                         "time.tzset não existe no Windows")
     def test_rodar_a_noite_nao_perde_o_primeiro_dia(self):
         """
         The window used to be counted in UTC here and in local time in the PDF
@@ -821,7 +829,7 @@ class PassagemDeBastao(unittest.TestCase):
         pasta = tempfile.mkdtemp()
         for nome in edicoes:
             os.makedirs(os.path.join(pasta, nome))
-            with open(os.path.join(pasta, nome, archive.FINAL_NAME), "w") as f:
+            with open(os.path.join(pasta, nome, archive.FINAL_NAME), "w", encoding="utf-8") as f:
                 json.dump([{"url": f"https://ex.com/{nome}"}], f)
         return pasta
 
@@ -885,7 +893,7 @@ class PassagemDeBastao(unittest.TestCase):
         original = archive.EDICAO_PATH
         archive.EDICAO_PATH = os.path.join(tempfile.mkdtemp(), "edicao_atual.json")
         try:
-            archive.registrar_edicao(datetime(2026, 10, 12, 10), janela_dias=14)
+            archive.registrar_edicao(datetime(2026, 10, 12, 10), inicio_janela=date(2026, 9, 28))
             self.assertEqual(archive.inicio_da_janela(), date(2026, 9, 28))
         finally:
             archive.EDICAO_PATH = original
@@ -1087,6 +1095,281 @@ class PassagemDeBastao(unittest.TestCase):
         self.assertIn("linha antes da falha", conteudo)
         self.assertIn("RuntimeError: erro no meio da execução", conteudo)
         self.assertIn("PAROU", conteudo)
+
+
+
+class NomeEQuinzenal(unittest.TestCase):
+    """The Drive's file names, and the fortnightly edition the company sends on purpose."""
+
+    # Real names from the Drive folder "Clippings Semanais", with the closing
+    # time each one carries.
+    NOMES_DO_DRIVE = [
+        (datetime(2026, 9, 21, 11, 0), date(2026, 9, 14),
+         "2026.09.21 Clipping Atualização Semanal (14_09 - 21_09 às 11h00).pdf"),
+        (datetime(2026, 9, 8, 9, 30), date(2026, 8, 31),
+         "2026.09.08 Clipping Atualização Semanal (31_08 - 08_09 às 9h30).pdf"),
+        (datetime(2026, 1, 19, 14, 43), date(2026, 1, 12),
+         "2026.01.19 Clipping Atualização Semanal (12_01 - 19_01 às 14h43).pdf"),
+        (datetime(2026, 2, 23, 12, 50), date(2026, 2, 9),
+         "2026.02.23 Clipping Atualização Quinzenal (09_02 - 23_02 às 12h50).pdf"),
+        (datetime(2026, 1, 5, 13, 13), date(2025, 12, 22),
+         "2026.01.05 Clipping Atualização Quinzenal (22_12_2025 - 05_01_2026 às 13h13).pdf"),
+    ]
+
+    def test_reproduz_os_nomes_do_drive(self):
+        for fechamento, inicio, esperado in self.NOMES_DO_DRIVE:
+            self.assertEqual(archive.nome_do_pdf(fechamento, inicio), esperado)
+
+    def test_atraso_de_dois_dias_continua_semanal(self):
+        nome = archive.nome_do_pdf(datetime(2026, 10, 7, 10, 5), date(2026, 9, 28))
+        self.assertIn("Semanal (28_09 - 07_10 às 10h05)", nome)
+
+    def test_sem_inicio_registrado_usa_sete_dias(self):
+        nome = archive.nome_do_pdf(datetime(2026, 9, 28, 10, 19))
+        self.assertEqual(nome, "2026.09.28 Clipping Atualização Semanal (21_09 - 28_09 às 10h19).pdf")
+
+    def _janela(self, edicoes, agora):
+        import json, main
+        pasta = tempfile.mkdtemp()
+        for nome in edicoes:
+            os.makedirs(os.path.join(pasta, nome))
+            with open(os.path.join(pasta, nome, archive.FINAL_NAME), "w", encoding="utf-8") as f:
+                json.dump([], f)
+        original = archive.ARCHIVE_DIR
+        archive.ARCHIVE_DIR = pasta
+        try:
+            return main.janela_desta_edicao(agora, quinzenal=True)
+        finally:
+            archive.ARCHIVE_DIR = original
+
+    def test_quinzenal_cobre_catorze_dias(self):
+        dias, porque = self._janela(["2026-09-14"], datetime(2026, 9, 28, 9))
+        self.assertEqual(dias, 14)
+        self.assertNotIn("⚠️", porque)
+
+    def test_quinzenal_com_arquivo_parado_nao_sugere_quinzenal(self):
+        _, porque = self._janela(["2026-09-01"], datetime(2026, 9, 28, 9))
+        self.assertIn("⚠️", porque)
+        self.assertNotIn("--quinzenal", porque)
+
+    def test_quinzenal_uma_semana_depois_avisa_que_repete(self):
+        dias, porque = self._janela(["2026-09-21"], datetime(2026, 9, 28, 9))
+        self.assertEqual(dias, 14)
+        self.assertIn("repete a semana", porque)
+
+    def test_edicao_viaja_com_o_cache(self):
+        """
+        A --from after a fortnightly run is still a fortnight, and a weekly one
+        resumed a week later is still weekly (the review found it turning into
+        "Quinzenal" when the kind was derived from the days).
+        """
+        from services.utils import cache
+        original = cache.CACHE_DIR
+        cache.CACHE_DIR = tempfile.mkdtemp()
+        try:
+            cache.save("search", [{"url": "u"}], "x", edicao={
+                "inicio_janela": date(2026, 9, 14), "desde": date(2026, 9, 14),
+                "tipo": "Semanal"})
+            salva = cache.edicao_salva("search")
+            self.assertEqual(salva["inicio_janela"], date(2026, 9, 14))
+            self.assertIsNone(cache.edicao_salva("dedup"))
+        finally:
+            cache.CACHE_DIR = original
+        # Resumed on 28/09: still "Semanal", even with 14 days between the dates.
+        nome = archive.nome_do_pdf(datetime(2026, 9, 28, 10, 19), salva["desde"], salva["tipo"])
+        self.assertIn("Semanal (14_09 - 28_09", nome)
+
+    def test_sequencia_real_do_drive(self):
+        """
+        The Drive's names come from the previous edition's day, not from the
+        first day searched: 14/09 is "(08_09 - 14_09 …)", after the Tuesday
+        edition of 08/09, though its header says "Week 07 Sep". Run through the
+        same functions main.py uses, over the real sequence of editions.
+        """
+        import json, main
+        sequencia = [
+            ("2026-08-24", datetime(2026, 8, 31, 14, 30),
+             "2026.08.31 Clipping Atualização Semanal (24_08 - 31_08 às 14h30).pdf"),
+            ("2026-08-31", datetime(2026, 9, 8, 9, 30),
+             "2026.09.08 Clipping Atualização Semanal (31_08 - 08_09 às 9h30).pdf"),
+            ("2026-09-08", datetime(2026, 9, 14, 9, 30),
+             "2026.09.14 Clipping Atualização Semanal (08_09 - 14_09 às 9h30).pdf"),
+            ("2026-09-14", datetime(2026, 9, 21, 11, 0),
+             "2026.09.21 Clipping Atualização Semanal (14_09 - 21_09 às 11h00).pdf"),
+        ]
+        pasta = tempfile.mkdtemp()
+        original = archive.ARCHIVE_DIR
+        archive.ARCHIVE_DIR = pasta
+        try:
+            for anterior, fechamento, esperado in sequencia:
+                os.makedirs(os.path.join(pasta, anterior), exist_ok=True)
+                with open(os.path.join(pasta, anterior, archive.FINAL_NAME), "w",
+                          encoding="utf-8") as f:
+                    json.dump([], f)
+                dias, _ = main.janela_desta_edicao(fechamento)
+                inicio = fechamento.date() - timedelta(days=dias)
+                desde = main.desde_para_o_nome(inicio, agora=fechamento)
+                self.assertEqual(archive.nome_do_pdf(fechamento, desde, "Semanal"), esperado)
+        finally:
+            archive.ARCHIVE_DIR = original
+
+    def test_busca_pede_uma_fatia_por_semana(self):
+        from services.utils.get_search_results import _fatias
+        hoje = date(2026, 9, 28)
+        self.assertEqual(_fatias(7, hoje), [(date(2026, 9, 21), hoje)])
+        fatias = _fatias(14, hoje)
+        self.assertEqual(len(fatias), 2)
+        self.assertEqual(fatias[0][0], date(2026, 9, 14))
+        self.assertEqual(fatias[-1][1], hoje)
+        # contiguous: no day left out, none asked twice
+        self.assertEqual(fatias[0][1] + timedelta(days=1), fatias[1][0])
+
+    def test_pdf_antigo_so_sai_de_output_se_estiver_arquivado(self):
+        from services import pdf_builder
+        raiz = tempfile.mkdtemp()
+        saida, arquivo = os.path.join(raiz, "output"), os.path.join(raiz, "archive")
+        os.makedirs(os.path.join(arquivo, "2026-09-21"))
+        os.makedirs(saida)
+        antigo = "2026.09.21 Clipping Atualização Semanal (14_09 - 21_09 às 11h00).pdf"
+        sem_copia = "2026.09.14 Clipping Atualização Semanal (08_09 - 14_09 às 9h30).pdf"
+        atual = "2026.09.28 Clipping Atualização Semanal (21_09 - 28_09 às 10h19).pdf"
+        for nome in (antigo, sem_copia, atual, "outra coisa.pdf"):
+            open(os.path.join(saida, nome), "wb").close()
+        open(os.path.join(arquivo, "2026-09-21", antigo), "wb").close()
+        original = pdf_builder.ARCHIVE_DIR
+        pdf_builder.ARCHIVE_DIR = arquivo
+        try:
+            pdf_builder._limpar_pdfs_antigos(os.path.join(saida, atual))
+        finally:
+            pdf_builder.ARCHIVE_DIR = original
+        self.assertEqual(sorted(os.listdir(saida)), sorted([sem_copia, atual, "outra coisa.pdf"]))
+
+
+class OutrosComputadores(unittest.TestCase):
+    """What used to assume a Mac."""
+
+    def test_trava_nao_mata_ninguem_ao_perguntar(self):
+        """os.kill(pid, 0) sends Ctrl+C on Windows; the check must only ask."""
+        self.assertTrue(trava._vivo(os.getpid()))
+        self.assertFalse(trava._vivo(0))
+        self.assertFalse(trava._vivo(-5))
+        self.assertFalse(trava._vivo(None))
+
+    def test_sem_weasyprint_para_antes_de_gastar(self):
+        import io, contextlib, main
+        from services.pdf_builder import PDFIndisponivel
+
+        def falta():
+            raise PDFIndisponivel("A parte que desenha o PDF (WeasyPrint) não carregou")
+
+        original = main.carregar_weasyprint
+        main.carregar_weasyprint = falta
+        saida = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(saida):
+                ok = main.verificar_pdf()
+        finally:
+            main.carregar_weasyprint = original
+        self.assertFalse(ok)
+        self.assertIn("Nada foi gasto", saida.getvalue())
+
+    def test_fuso_de_brasilia_existe_neste_computador(self):
+        """Windows has no time-zone database; the tzdata package has to be there."""
+        from zoneinfo import ZoneInfo
+        self.assertEqual(datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
+                         .astimezone(ZoneInfo("America/Sao_Paulo")).hour, 9)
+
+    def test_fonte_do_pdf_vem_no_repositorio(self):
+        """Fetched from Google on every build, the font fell back to Arial offline."""
+        from services import pdf_builder
+        modelo = open(os.path.join(pdf_builder.CONFIGS_DIR, "clipping_template.html"),
+                      encoding="utf-8").read()
+        self.assertNotIn("fonts.googleapis.com", modelo)
+        for peso in (400, 500, 600, 700):
+            self.assertIn(f"fontes/Montserrat-{peso}.ttf", modelo)
+            self.assertTrue(os.path.exists(os.path.join(
+                pdf_builder.CONFIGS_DIR, "fontes", f"Montserrat-{peso}.ttf")))
+
+
+class RevisaoMultiplataforma(unittest.TestCase):
+    """What the independent review of 28 set 2026 found in the first draft."""
+
+    def test_busca_que_falha_para_e_nao_finge_que_nao_achou(self):
+        """
+        A network failure used to fall through to the undated search, which
+        brings far fewer stories, and the report said "nada com a busca normal".
+        """
+        from services.utils import get_search_results as busca
+        pedidos = []
+
+        class Feed:
+            entries = []
+
+        def falha(url):
+            pedidos.append(url)
+            return Feed(), "HTTP 429"
+
+        salvos = (busca._ler_feed, busca.time.sleep)
+        busca._ler_feed, busca.time.sleep = falha, (lambda s: None)
+        try:
+            resultados, problemas = busca.get_search_results("aws", days=7)
+        finally:
+            busca._ler_feed, busca.time.sleep = salvos
+        self.assertEqual(resultados, [])
+        self.assertEqual(len(pedidos), 2)            # the slice, and one retry
+        texto = "\n".join(problemas)
+        self.assertIn("FALHOU duas vezes", texto)
+        self.assertNotIn("busca normal", texto)
+
+    def test_fuso_sem_dois_pontos_e_lido_em_qualquer_python(self):
+        """Python 3.10 (Ubuntu 22.04) did not read "-0300"; the hour was lost."""
+        from services.scraper import _parse_date
+        self.assertEqual(_parse_date("2026-09-28T10:00:00-0300").hour, 10)
+        self.assertEqual(_parse_date("2026-09-28T10:00:00+0000").utcoffset(), timedelta(0))
+        self.assertEqual(_parse_date("2026-09-28T10:00:00.5-03:00").microsecond, 500000)
+
+    def test_arquivo_guarda_so_o_ultimo_pdf_da_edicao(self):
+        pasta_json = tempfile.mkdtemp()
+        json_path = os.path.join(pasta_json, "clippings.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            f.write("[]")
+        original = archive.ARCHIVE_DIR
+        archive.ARCHIVE_DIR = tempfile.mkdtemp()
+        try:
+            quando = datetime(2026, 9, 28, 10, 19)
+            pasta = os.path.join(archive.ARCHIVE_DIR, "2026-09-28")
+            os.makedirs(pasta)
+            for velho in ("clipping.pdf",
+                          "2026.09.28 Clipping Atualização Semanal (21_09 - 28_09 às 9h00).pdf"):
+                open(os.path.join(pasta, velho), "wb").close()
+            novo = os.path.join(pasta_json,
+                                "2026.09.28 Clipping Atualização Semanal (21_09 - 28_09 às 10h19).pdf")
+            open(novo, "wb").close()
+            import io, contextlib
+            with contextlib.redirect_stdout(io.StringIO()):
+                archive.archive_final(json_path, novo, when=quando, items=[])
+            pdfs = [n for n in os.listdir(pasta) if n.endswith(".pdf")]
+            self.assertEqual(pdfs, [os.path.basename(novo)])
+        finally:
+            archive.ARCHIVE_DIR = original
+
+    def test_pdf_de_nome_antigo_sai_de_output(self):
+        from services import pdf_builder
+        raiz = tempfile.mkdtemp()
+        saida, arquivo = os.path.join(raiz, "output"), os.path.join(raiz, "archive")
+        os.makedirs(os.path.join(arquivo, "2026-09-22"))
+        os.makedirs(saida)
+        open(os.path.join(arquivo, "2026-09-22", "clipping.pdf"), "wb").close()
+        atual = os.path.join(saida, "2026.09.28 Clipping Atualização Semanal (21_09 - 28_09 às 10h19).pdf")
+        for caminho in (atual, os.path.join(saida, "clippings_output.pdf")):
+            open(caminho, "wb").close()
+        original = pdf_builder.ARCHIVE_DIR
+        pdf_builder.ARCHIVE_DIR = arquivo
+        try:
+            pdf_builder._limpar_pdfs_antigos(atual)
+        finally:
+            pdf_builder.ARCHIVE_DIR = original
+        self.assertEqual(os.listdir(saida), [os.path.basename(atual)])
 
 
 if __name__ == "__main__":

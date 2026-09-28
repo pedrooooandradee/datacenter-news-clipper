@@ -14,24 +14,30 @@ clipping** com a logo da 247.
 ### A instalação
 
 Está no **`README.md`**, passo a passo: uns 20 minutos, uma vez por computador,
-**só Mac**. Em resumo: instalar o Git, o Google Chrome e o conda (Miniforge);
-criar o ambiente com o comando conda do README; montar o `venv` a partir dele; e
-instalar as bibliotecas pelo arquivo de versões travadas:
+em **Mac, Windows ou Linux**. Em resumo: instalar o Git, o Google Chrome e o
+Python; instalar as bibliotecas de sistema que desenham o PDF (o único passo que
+muda de um sistema para outro); montar o `venv`; e instalar as bibliotecas pelo
+arquivo de versões travadas:
 
 ```bash
 pip install -r requirements.lock.txt
 ```
 
-Duas armadilhas, as duas testadas:
+No fim, confira o computador inteiro, de graça:
 
-- Não use `python3 -m venv` com o Python que vem no Mac: ele é o 3.9, e as
-  bibliotecas deste projeto exigem 3.10 ou mais. O `venv` tem de sair do
-  `~/.clipping247-python/bin/python3` — é isso que também deixa o PDF funcionar.
-- Em Mac com chip Apple, o ambiente conda tem de ser criado **para chip Apple**
-  (o comando do README começa com `CONDA_SUBDIR=osx-arm64`). Um Anaconda de Intel
-  cria ambientes de Intel, e aí tudo instala, os testes passam, e a coleta trava
-  em quase toda página de notícia. Com o `venv` ativo, `python -c "import platform;
-  print(platform.machine())"` tem de dizer `arm64`.
+```bash
+python conferir_instalacao.py
+```
+
+Ele testa o Python, as bibliotecas, um PDF de teste com a fonte certa, o Chrome
+abrindo uma página, o Google Notícias, a chave da OpenAI (pela consulta gratuita)
+e os testes. Tudo tem de dar ✅; cada ⛔ diz o que fazer. Rode de novo sempre que
+algo quebrar sem motivo aparente.
+
+A armadilha que mais custou tempo, e que ele pega: em Mac com chip Apple, o
+ambiente conda tem de ser criado **para chip Apple** (o comando do README começa
+com `CONDA_SUBDIR=osx-arm64`). Um Anaconda de Intel cria ambientes de Intel, e aí
+tudo instala, os testes passam, e a coleta trava em quase toda página de notícia.
 
 ### A logo da 247
 
@@ -81,8 +87,9 @@ clique e não quebra nada além do `.env` de quem a usava.
 
 ## Os comandos
 
-Sempre com `(venv)` no início da linha do terminal. Se não estiver:
-`source venv/bin/activate`.
+Sempre com `(venv)` no início da linha do terminal (o terminal do Cursor já abre
+assim). Se não estiver: `source venv/bin/activate` no Mac e no Linux,
+`venv\Scripts\Activate.ps1` no Windows. Os comandos são os mesmos nos três.
 
 ### 1. Rodar o clipping completo
 
@@ -95,6 +102,30 @@ dinheiro de API (US$ 0,20 na edição de 22/09, com 56 matérias) e leva de 10 a
 minutos. Sem nenhuma opção, roda tudo do zero — é sempre uma edição nova, nunca
 reaproveita busca da semana passada.
 
+> Desde 28/09 a busca pede ao Google as datas da semana e traz o **dobro** de
+> notícias candidatas (457 contra 230, medido nas consultas reais), sobretudo de
+> concorrentes e clientes. O custo e o tempo de uma edição com ela ainda não foram
+> medidos: anote os da primeira.
+
+**O PDF sai com o nome que a pasta do Drive usa**, pronto para subir:
+
+```
+output/2026.09.28 Clipping Atualização Semanal (21_09 - 28_09 às 10h19).pdf
+```
+
+A data e a hora são as do fechamento da edição; entre parênteses, o primeiro e o
+último dia cobertos.
+
+**Edição quinzenal** (festas de fim de ano, Carnaval — já foram feitas assim):
+
+```bash
+python main.py --quinzenal
+```
+
+Cobre 14 dias, buscando uma semana de cada vez, e o PDF sai como
+"Clipping Atualização Quinzenal". Quando a janela cruza a virada do ano, as datas
+levam o ano: `(22_12_2025 - 05_01_2026 às 13h13)`.
+
 Antes de gastar qualquer coisa, o programa confere se a chave e os modelos da
 OpenAI respondem. Se não, para na hora e diz por quê (ver "Quando quebrar"). O
 que essa conferência não enxerga é conta **sem crédito**: aí o programa para na
@@ -103,11 +134,10 @@ depois, sem pagar de novo o que já rodou.
 
 **A janela da edição** é de 7 dias. Se rodar até três dias atrasado, ela vai até
 a última edição (nove ou dez dias), para os dias de atraso não se perderem. Mais
-que isso, não: **uma semana pulada não é recuperada.** O Google Notícias devolve
-no máximo 100 resultados por busca, e as buscas principais já enchem isso em 7
-dias. A primeira linha que o programa imprime diz qual janela usou; se vier com
-⚠️ dizendo que a última edição **neste computador** é antiga, leia antes de
-deixar seguir (ver "Quando quebrar").
+que isso, só pedindo: **uma semana pulada não é recuperada sozinha** — para cobrir
+duas semanas, `--quinzenal`. A primeira linha que o programa imprime diz qual
+janela usou; se vier com ⚠️ dizendo que a última edição **neste computador** é
+antiga, leia antes de deixar seguir (ver "Quando quebrar").
 
 **Tudo o que aparece no terminal fica salvo** em `output/logs/`. É dali que a
 revisão lê os avisos, mesmo depois de fechar a janela.
@@ -156,8 +186,11 @@ python -m unittest discover -s tests
 ```
 
 De graça, um segundo, sem internet. São os testes das regras que decidem o que o
-investidor lê — o comando diz quantos são. Rode depois de mexer em qualquer configuração. **Se algum falhar,
-não envie o clipping.**
+investidor lê — o comando diz quantos são. Rode depois de mexer em qualquer
+configuração. **Se algum falhar, não envie o clipping.**
+
+Para conferir o computador inteiro (Chrome, PDF, chave, internet), e não só as
+regras: `python conferir_instalacao.py`.
 
 ---
 
@@ -168,8 +201,9 @@ ajudando, e 11 das 36 notícias precisaram de correção — **nenhum desses err
 aparecia no terminal**. Sem IA, o tempo ainda não foi medido.
 
 Abra lado a lado:
-- o PDF da semana — `output/clippings_output.pdf`;
-- o PDF da última edição **enviada** — `output/archive/<data>/clipping.pdf`.
+- o PDF da semana — `output/<data> Clipping Atualização Semanal (…).pdf`;
+- o PDF da última edição **enviada** — na pasta "Clippings Semanais" do Drive,
+  ou em `output/archive/<data>/`.
   Confira que é mesmo a última que o cliente recebeu; se ela saiu de outro
   computador, a cópia certa está na pasta da empresa;
 - o registro da execução — `output/logs/execucao-<data>.log`.
@@ -266,7 +300,7 @@ novo. (Antes, ele montava o PDF sem nenhuma correção e dizia "PDF gerado".)
 
 | | |
 |---|---|
-| PDF da semana | `output/clippings_output.pdf` |
+| PDF da semana | `output/<data> Clipping Atualização Semanal (…).pdf` — o nome do Drive |
 | Notícias da semana | `output/clippings.json` |
 | Versão anterior, antes da última reescrita | `output/clippings.anterior.json` |
 | Edições antigas | `output/archive/AAAA-MM-DD/` |
@@ -278,10 +312,14 @@ novo. (Antes, ele montava o PDF sem nenhuma correção e dizia "PDF gerado".)
 | Por que o programa é assim | `DECISOES.md` |
 
 Cada edição é arquivada em duas versões: `clippings.raw.json`, que é o que o
-programa produziu e **nunca** é sobrescrito, e `clippings.final.json` com o
-`clipping.pdf`, que é o último PDF montado — o enviado, se ninguém remontou depois. A diferença entre as duas é o
-julgamento humano da semana, e é com ela que dá para medir se uma mudança no
-programa melhorou alguma coisa.
+programa produziu e **nunca** é sobrescrito, e `clippings.final.json` com o PDF
+(com o nome do Drive), que é o último PDF montado — o enviado, se ninguém remontou
+depois. A diferença entre as duas é o julgamento humano da semana, e é com ela que
+dá para medir se uma mudança no programa melhorou alguma coisa.
+
+Na pasta `output/`, os PDFs das edições anteriores saem sozinhos quando a cópia
+deles já está no arquivo; na pasta de cada edição no arquivo fica só o último PDF
+montado.
 
 ---
 
@@ -335,10 +373,11 @@ imprimiu está em `output/logs/`; é esse arquivo que vai para quem for conserta
 | `⛔ O PDF NÃO foi gerado: configs/overrides.json tem um erro de sintaxe` | Vírgula ou aspa sobrando ou faltando | Corrigir na linha indicada e rodar o comando 2 |
 | `⛔ A execução PAROU com o erro acima` | Erro que o programa não previu | Não enviar. Mandar o arquivo de `output/logs/` a quem for consertar |
 | `⚠️ a última edição NESTE COMPUTADOR é de…` | Semana pulada, ou edições enviadas de outro computador | Se saíram de outro computador: Ctrl+C, copiar as pastas delas da pasta da empresa para `output/archive/`, rodar de novo. Se foi semana pulada: pode seguir |
-| `⛔ Já existe uma execução` | Outra execução rodando, ou uma que morreu no meio | Se ninguém está rodando: `ps -p <número> -o command=` com o número que aparece. Se a resposta não for `main.py`, apague `output/execucao.lock` |
+| `⛔ Já existe uma execução` | Outra execução rodando, ou uma que morreu no meio | Se ninguém está rodando, veja o comando do processo com o número que aparece — Mac e Linux: `ps -p <número> -o command=`; Windows (PowerShell): `(Get-CimInstance Win32_Process -Filter "ProcessId=<número>").CommandLine`. Se não aparecer `main.py`, apague `output/execucao.lock` |
 | `a busca por '…' FALHOU` em todas as consultas | Internet ou Google Notícias fora do ar | Esperar e rodar de novo |
-| Quase todas "descartadas por falha de coleta" (com `timeout no carregamento` ou `TimeoutException`) | Em Mac com chip Apple, quase sempre o ambiente instalado para Intel; senão, internet ou Chrome | Com o `venv` ativo, `python -c "import platform; print(platform.machine())"`: se disser `x86_64`, refazer a instalação (README, passo 3). Se disser `arm64`, conferir a internet e atualizar o Chrome. A triagem (centavos) já foi paga: rodar de novo com `--from=scrape` |
-| `No module named …` | O `venv` não está ativo | `source venv/bin/activate` |
+| Quase todas "descartadas por falha de coleta" (com `timeout no carregamento` ou `TimeoutException`) | Em Mac com chip Apple, quase sempre o ambiente instalado para Intel; senão, internet ou Chrome | `python conferir_instalacao.py`: ele diz se o Chrome abre e, num Mac, se o Python é de Intel (aí, refazer o passo 3 do README). Se tudo der ✅, conferir a internet e atualizar o Chrome. A triagem (centavos) já foi paga: rodar de novo com `--from=scrape` |
+| `No module named …` | O `venv` não está ativo | Mac e Linux: `source venv/bin/activate`; Windows: `venv\Scripts\Activate.ps1` |
+| `⛔ … A parte que desenha o PDF (WeasyPrint) não carregou` | Faltam as bibliotecas de sistema do PDF | A própria mensagem diz o comando do seu sistema (README, passo 3). Nada foi gasto |
 | Algo quebrou logo depois de reinstalar | Versão nova de alguma biblioteca | `pip install -r requirements.lock.txt`, antes de mexer em qualquer código |
 | Testes falhando | O programa mudou de comportamento | Não enviar. `git status` mostra o que foi mexido; avise quem mexeu |
 
@@ -356,7 +395,8 @@ imprimiu está em `output/logs/`; é esse arquivo que vai para quem for conserta
 | Revisão item a item (seção acima) | logo depois | [a definir] | |
 | Aprovar a edição corrigida | antes do envio | [a definir] | |
 | Enviar o PDF à 247 | até [horário a definir] | [a definir], pela caixa [a definir] | |
-| Copiar a pasta da edição para [pasta da empresa a definir] | depois do envio | quem enviou | |
+| Subir o PDF, com o nome que o programa deu, na pasta "Clippings Semanais" do Drive (elementum3 \| Geral › 247 DATA CENTERS) | depois do envio | quem enviou | |
+| Copiar a pasta da edição (`output/archive/<data>/`) para [pasta da empresa a definir] | depois do envio | quem enviou | |
 
 - **Destinatários na 247:** [a definir]. **Contato na 247:** [a definir].
 - **A quem recorrer se o programa quebrar:** [a definir].

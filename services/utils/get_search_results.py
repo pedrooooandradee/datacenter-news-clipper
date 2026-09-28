@@ -22,6 +22,7 @@ Requirements:
 """
 
 import feedparser
+import time
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -180,44 +181,131 @@ def _ler_feed(url):
     return feed, None
 
 
+# Google News answers each query with about a hundred entries, whatever their
+# dates. Asked with no dates at all, as it was until 28 set 2026, it mixes weeks,
+# and the week being edited got what was left. Measured that day, the last 7 days
+# with no dates versus the same 7 days asked with after:/before: —
+#
+#   "aws" ............ 13 versus 55
+#   "data center" .... 81 versus 100 (the ceiling)
+#   "google cloud" ... 80 versus 100 (the ceiling)
+#
+# So each query asks for its dates, one slice of at most FATIA_DIAS civil days
+# at a time: a weekly edition is one request per query, as before, and a
+# fortnightly one is two, so its first week is not crowded out by the second.
+#
+# It is still not everything. A narrower range returns more: "aws" asked for
+# three days brought 17 stories its weekly slice did not (measured the same day,
+# in an independent review), most of them not about data centres. Slices of a day
+# would multiply the requests by seven and the stories to triage and review by
+# more; whether the extra stories are worth it is to be measured on real
+# editions (TODO.md). A slice that hits the ceiling is reported, because there
+# the loss is certain.
+FATIA_DIAS = 8          # a 7-day window spans 8 civil days: the 21st to the 28th
+TETO_DO_GOOGLE = 100
+ESPERA_ANTES_DE_REPETIR = 3   # seconds, before asking again for a slice that failed
+
+
+def _fatias(days, hoje=None):
+    """The window, from its first day to today, cut into slices of FATIA_DIAS days."""
+    hoje = hoje or datetime.now().date()
+    inicio = hoje - timedelta(days=days)
+    fatias, fim = [], hoje
+    while fim >= inicio:
+        comeco = max(inicio, fim - timedelta(days=FATIA_DIAS - 1))
+        fatias.append((comeco, fim))
+        fim = comeco - timedelta(days=1)
+    return list(reversed(fatias))
+
+
+def _com_periodo(query, comeco, fim):
+    """
+    The query restricted to [comeco, fim].
+
+    after: and before: exclude the day they name, and Google's day is not
+    necessarily Brasília's, so each side gets a day of slack. The window itself
+    is cut afterwards, by date, in collect_search_results_from_rss.
+    """
+    return (f"{query} after:{(comeco - timedelta(days=1)).isoformat()} "
+            f"before:{(fim + timedelta(days=1)).isoformat()}")
+
+
+def _buscar(query, days, country, ui_lang, fatiar=True):
+    """
+    One attempt at a query: every slice, merged.
+
+    Returns (results, descartados, sem_data, problemas, falhou). A slice that
+    fails is asked for once more, after a pause; `falhou` says one still failed.
+    """
+    results, descartados, sem_data, problemas, vistos = [], [], [], [], set()
+    falhou = False
+    for comeco, fim in (_fatias(days) if fatiar else [(None, None)]):
+        busca = _com_periodo(query, comeco, fim) if comeco else query
+        rotulo = f"'{query}'" + (f" ({comeco:%d/%m}–{fim:%d/%m})" if comeco else "")
+        url = build_google_news_rss_url(busca, country=country, ui_lang=ui_lang)
+        feed, erro = _ler_feed(url)
+        if erro:
+            time.sleep(ESPERA_ANTES_DE_REPETIR)
+            feed, erro = _ler_feed(url)
+        if erro:
+            falhou = True
+            problemas.append(f"a busca por {rotulo} FALHOU duas vezes ({erro}) — as "
+                             f"notícias dela não entraram na edição")
+            continue
+        if comeco and len(feed.entries) >= TETO_DO_GOOGLE:
+            problemas.append(f"{rotulo}: {len(feed.entries)} resultados, o teto do Google "
+                             f"— há notícias desta consulta que não vieram")
+        achados, fora, sem = collect_search_results_from_rss(feed, days)
+        for item in achados:
+            if item["url"] not in vistos:
+                vistos.add(item["url"])
+                results.append(item)
+        descartados += fora
+        sem_data += sem
+    return results, descartados, sem_data, problemas, falhou
+
+
 def get_search_results(query, days=7, country='br', ui_lang='pt-BR'):
     """
     Fetch the items matching `query`, filtered to the last `days` civil days.
+
+    Up to three attempts, stopping at the first that finds something: the query
+    with its dates; the same query with no dates, in case Google ever stops
+    honouring after:/before:; and the query between quotes, with its dates. A
+    network failure is not "found nothing": it stops here and is reported, rather
+    than being papered over by a weaker search.
 
     Returns:
         (results, problemas) — problemas is a list of lines for the caller to
         print. Nothing is dropped in silence (DECISOES.md, Q24).
     """
-    problemas = []
+    tentativas = [(query, True, None),
+                  (query, False, "sem período"),
+                  (f'"{query}"', True, "entre aspas")]
+    problemas, results, descartados, sem_data = [], [], [], []
+    for busca, fatiar, como in tentativas:
+        results, descartados, sem_data, probs, falhou = _buscar(
+            busca, days, country, ui_lang, fatiar)
+        problemas += probs
+        if results:
+            if como:
+                problemas.append(f"'{query}': a busca normal não achou nada na janela; "
+                                 f"as {len(results)} notícias vieram da busca {como}")
+            break
+        if falhou:
+            break
 
-    feed, erro = _ler_feed(build_google_news_rss_url(query, country=country))
-    if erro:
-        problemas.append(f"a busca por '{query}' FALHOU ({erro}) — nenhuma notícia "
-                         f"desta consulta entrou na edição")
-        return [], problemas
-
-    results, descartados, sem_data = collect_search_results_from_rss(feed, days)
-
-    # Fallback: the same query between quotes, when the loose one found nothing.
-    if not results:
-        feed, erro = _ler_feed(
-            build_google_news_rss_url(f'"{query}"', country=country))
-        if erro:
-            problemas.append(f"a busca por '{query}' (entre aspas) FALHOU ({erro})")
-            return [], problemas
-        results, extras, sem_data_extra = collect_search_results_from_rss(feed, days)
-        descartados += extras
-        sem_data += sem_data_extra
-
+    # Only the attempt that counted is reported, and each story once.
+    descartados = sorted(set(descartados))
     if descartados:
-        na_borda = sorted(d for d in descartados if d[0] <= DIAS_DE_BORDA)
+        na_borda = [d for d in descartados if d[0] <= DIAS_DE_BORDA]
         problemas.append(f"'{query}': {len(descartados)} entradas fora da janela "
                          f"de {days} dias"
                          + (f", {len(na_borda)} delas a até {DIAS_DE_BORDA} dias "
                             f"da borda:" if na_borda else " (todas bem antigas)"))
         problemas += [f"     - {texto}" for _, texto in na_borda[:5]]
     if sem_data:
-        problemas.append(f"'{query}': {len(sem_data)} entradas sem data legível no "
+        problemas.append(f"'{query}': {len(set(sem_data))} entradas sem data legível no "
                          f"feed, MANTIDAS — a data virá da própria página")
 
     return results, problemas
