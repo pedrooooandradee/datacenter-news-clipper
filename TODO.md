@@ -9,6 +9,38 @@ O porquê de cada decisão está em `DECISOES.md`. Isto aqui é só a fila.
 
 ---
 
+## Antes de janeiro de 2027: o que depende do Edson
+
+O Pedro sai da Elementum3 em janeiro. Estas definições são o que separa o clipping
+de rodar sozinho ou parar. Levadas ao Edson em 28 set 2026; respostas pedidas até
+o fim de outubro.
+
+1. **Dono do clipping e substituto** — autoriza, aprova, decide o editorial.
+2. **Envio** — destinatários na 247, contato lá, caixa de e-mail da empresa.
+3. **OpenAI** — quem administra a organização `elementum3`; uma chave de conta de
+   serviço num projeto só do clipping, com limite mensal. A chave em uso hoje chegou
+   pelo Leo e está também na cópia antiga do iCloud: trocar e depois revogar.
+4. **GitHub** — organização da Elementum3, para o Pedro transferir o repositório.
+5. **Pasta corporativa** para `output/archive/` e os PDFs enviados.
+6. **Máquina** — em qual computador roda, e se é Mac (só Mac está testado).
+7. **Uso de IA na revisão** — pode? Com qual conta?
+8. **Suporte técnico** depois de janeiro.
+
+Quando as respostas vierem: preencher a seção "Operação semanal" do `LEIA-ME.md`.
+
+## Antes de janeiro de 2027: o que é do Pedro
+
+- Revisar as edições de 05/10 e 12/10 **só com o checklist do LEIA-ME, sem IA**, e
+  anotar o tempo. É o número que dimensiona a semana do sucessor.
+- O sucessor instala tudo **sozinho**, no computador dele, seguindo só o README; cada
+  tropeço vira linha no documento.
+- Transferir o repositório; copiar `output/archive/` para a pasta da empresa; apagar
+  a cópia do iCloud; no último dia, `gh auth logout`.
+- Pedir ao Leo que arquive o repositório antigo (`github.com/Orimadros/…`), que
+  segue público com a v1, com um aviso apontando para o novo.
+
+---
+
 ## Primeiro da fila
 
 - **A segunda etapa da deduplicação deixou passar casos óbvios** na edição de 28/09:
@@ -63,24 +95,12 @@ nenhum do PDF. Quem lê a edição não tem como saber:
 
 - `date_unverified` — a data de publicação não pôde ser lida (8 notícias na
   edição de 22/09).
-- `date_outside_window` — a notícia é mais velha que a janela de 7 dias.
-- `numeros_nao_conferidos` — o resumo cita número que não está na matéria. Hoje
-  isso só sai como o bloco 🚨 no terminal, durante a execução completa; quem só
-  refaz o PDF não vê.
+- `date_outside_window` — a notícia é mais velha que a janela da edição.
+- `numeros_nao_conferidos` — o resumo cita número que não está na matéria. Desde
+  28/09 o bloco 🚨 reaparece no terminal a cada montagem do PDF, mas não no PDF.
 
 Decidir se viram marca no PDF, linha no rodapé, ou nada.
 
 ## Limpeza
 
 - `configs/overrides.json` declara `"versao": 1` e nada lê essa chave.
-
-## Fora do código
-
-- **Transferir o repositório** (`https://github.com/pedrooooandradee/datacenter-news-clipper`) para uma conta da Elementum3 ou do
-  conselho da 247 antes de janeiro de 2027. Está na conta pessoal do Pedro: depois
-  que ele sair, ninguém transfere. O repositório antigo (`Orimadros`) é da conta do
-  Leo e segue público com a v1 — vale pedir a ele que o arquive, com um aviso
-  apontando para o novo.
-- **Não existe documento de operação**: para quem vai o PDF, por qual canal, em
-  que dia, quem aprova antes de enviar e quem paga a chave da
-  OpenAI. Nada disso está escrito em lugar nenhum.

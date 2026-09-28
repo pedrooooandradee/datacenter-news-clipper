@@ -572,6 +572,127 @@ Não foi mexida agora porque não era o combinado. É a primeira coisa a medir n
 próxima edição: quantos grupos de título chegam, quantos ela junta, e ler o
 porquê dos que ela não junta.
 
+## Passagem de bastão (28 set 2026)
+
+O Pedro sai da Elementum3 em janeiro de 2027. Uma auditoria com cinco olhares
+independentes — contas e donos, o primeiro dia de um estagiário novo, o que
+envelhece sozinho, a operação semanal e as decisões órfãs — levantou 48 achados;
+um revisor fundiu os repetidos, derrubou 13 e confirmou 16. Três impediam a edição
+de sair: ninguém definido para rodar, revisar e enviar; a chave da OpenAI sem dono
+claro; e a instalação nunca testada fora do Mac do Pedro.
+
+### O que foi apurado sobre a chave
+
+Conferido com o próprio cliente da OpenAI, sem expor o valor: é uma chave de
+projeto (`sk-proj-`) da **organização `elementum3`**, que funciona. Quem paga já é
+a empresa. Ela chegou pelo Leo (o README da v1 dizia "Ask Leo for the API key") e
+a mesma chave está na cópia antiga do iCloud. Chave de projeto comum fica ligada a
+quem a criou; o conserto é uma chave de **conta de serviço**, criada por quem
+administra a organização — pedido ao Edson.
+
+### Três erros meus, corrigidos
+
+- O LEIA-ME ainda mandava pedir autorização "do Gabriel ou do Leo" num segundo
+  lugar, que escapou da correção de 23 set.
+- O conserto para Mac com Homebrew recomendado em 23 set (`PKG_CONFIG_PATH` no
+  `.env`) não tinha efeito: o WeasyPrint carrega pango e cairo pelo `dlopen` do cffi,
+  que não lê essa variável. O conselho e o código que a copiava saíram.
+- O filtro de repetidas feito nesta mesma data desligava **em silêncio** quando não
+  achava a edição anterior. Agora avisa.
+
+### O que mudou
+
+- **Instalação: um caminho só, o testado.** Um Mac novo tem Python 3.9, e as
+  bibliotecas exigem 3.10 ou mais — o caminho Homebrew quebrava no primeiro `pip`.
+  Ficou o conda, com o comando exato que criou o ambiente em uso (tirado do
+  histórico do próprio ambiente: faltavam `gdk-pixbuf`, `libffi` e
+  `--override-channels` na receita de 23 set). Testado do zero: ambiente novo,
+  `venv` novo, instalação, testes, PDF, checagem da OpenAI e coleta real.
+- **Versões travadas** em `requirements.lock.txt` (78 pacotes), tiradas do ambiente
+  limpo instalado com as versões que produziram as edições reais. O
+  `requirements.txt` com `>=` puxaria em 2027 combinações que ninguém testou.
+- **A armadilha do chip, achada no teste do zero.** A primeira instalação limpa
+  seguindo a receita passou em tudo — testes, PDF, checagem da OpenAI — e a coleta
+  travou em toda página pesada: 30 segundos de espera no Valor e no G1, que o
+  ambiente antigo abria em 1 segundo. Pacotes Python idênticos, variáveis de
+  ambiente idênticas, mesmo Chrome e mesmo driver. Foram cinco testes eliminando
+  hipóteses: não era a ordem de acesso (o site não estava freando), nem a versão do
+  Python, nem a pasta, nem o firewall, nem os pacotes a mais do ambiente antigo.
+  Era a arquitetura: este Mac é Apple M1, o Anaconda instalado é o de Intel, e ele
+  cria ambientes de Intel por padrão. O ambiente que funciona tinha sido criado
+  forçando o chip Apple, e a receita não dizia isso. O Python de Intel roda
+  traduzido pelo Rosetta, e o Chrome disparado por ele trava nas páginas pesadas.
+  A receita agora começa com `CONDA_SUBDIR=osx-arm64`, conferida como está escrita
+  (o ensaio do conda responde `Platform: osx-arm64`), e o README ensina a checar
+  com `platform.machine()`. Refeita assim, a instalação limpa coletou as 8 páginas
+  de teste idênticas à referência.
+- **Chrome:** o driver passa a ser resolvido pelo próprio Selenium (o pacote
+  `webdriver-manager` saiu) e o navegador se apresenta com a versão real, não com
+  uma "Chrome 114" fixa. Coleta de 8 páginas: resultado idêntico, caractere por
+  caractere. A versão vai como opção de abertura do Chrome, não por CDP depois de
+  aberto: o CDP apagava os client hints (`sec-ch-ua`), o que é outra identidade que
+  nenhum Chrome de verdade tem (ver a revisão, abaixo).
+- **Antes de gastar, o programa confere a chave e os modelos** — consulta de
+  metadados, sem custo. Modelo aposentado, chave revogada, chave sem permissão ou
+  OpenAI instável param a execução em segundos, cada um com a sua causa. Conta sem
+  crédito essa consulta não vê; ela para a execução na primeira chamada paga, a
+  triagem, com o comando para retomar.
+- **A janela da edição** é de 7 dias, estendida até a última edição quando a
+  execução atrasa até três dias. O dia de início fica registrado e o cabeçalho do
+  PDF passa a mostrá-lo. Busca, filtro de datas e cabeçalho usam a mesma janela e
+  o mesmo calendário (o do computador; a busca contava em UTC e perdia o primeiro
+  dia depois das 21h).
+- **Tudo o que a execução imprime fica em `output/logs/`**, e o bloco 🚨 reaparece a
+  cada montagem do PDF. A revisão depende desses avisos, que viviam só numa janela
+  de terminal.
+- O aviso de correção do `overrides.json` que não bateu separa **as desta semana**
+  (em destaque — quase sempre URL digitada errado) das antigas (só contadas).
+- Clone sem nenhuma edição: refazer o PDF explica o que fazer, em vez de estourar.
+- **LEIA-ME:** revisão item a item (o que a conferência de 28/09 precisou achar),
+  "Quando quebrar" e o esqueleto da "Operação semanal", com os nomes em branco até
+  o Edson responder.
+
+### A revisão antes de publicar
+
+Antes do commit, o conjunto passou por uma revisão independente com três lentes
+(código, documentos, regressão), cada achado reproduzido por um segundo revisor
+cético. Confirmou 20. Os que mudaram decisão:
+
+- **A janela esticada até a edição anterior (até 21 dias) foi desfeita.** Era o
+  único achado grave. O `output/archive/` fica num computador só e fora do git.
+  Num computador cujo arquivo parou em 14/09, enquanto 21/09 e 28/09 saíram de
+  outro, a janela ia a 21 dias e o filtro de repetidas comparava com 14/09: as duas
+  edições já enviadas voltavam inteiras, sob um cabeçalho de três semanas. E nem o
+  benefício existia: o Google Notícias devolve no máximo 100 resultados por
+  busca, e as duas buscas principais enchem 81 e 80 deles em 7 dias. Semana pulada
+  não é recuperada, e agora o programa e o LEIA-ME dizem isso, em vez de prometer
+  o contrário. Arquivo antigo neste computador gera ⚠️ no começo da execução.
+- **`overrides.json` com erro de sintaxe para o PDF.** Antes, o arquivo era
+  ignorado com um aviso e saía um PDF sem nenhuma correção, com "PDF gerado" no
+  fim e o arquivo da edição sobrescrito.
+- **As datas das correções são comparadas como datas.** Como texto, "05/10/2026"
+  ficava antes de "2026-10-05", e a correção da semana com URL errada era
+  escondida como antiga.
+- **O registro em `output/logs/` guarda o erro.** O traceback era impresso depois
+  de o arquivo fechar: o registro que ia para quem fosse consertar terminava uma
+  linha antes do problema. Agora é gravado linha a linha, e sobrevive a fechar a
+  aba do terminal.
+- **Permissão não é modelo aposentado.** Um 403 mandava trocar o modelo em
+  `configs/modelos.json`, o que muda quem escreve os resumos e não resolve nada. O
+  modelo de embedding, sem o qual o programa já sabia seguir, só gera aviso.
+- **Data só com o dia** ("2026-09-28") era lida como meia-noite em UTC, 21h da
+  véspera em Brasília, e o PDF mostrava 27 Set. Passou a ser meio-dia UTC.
+- Os documentos: o COMANDOS.txt tinha explicação na mesma linha do comando
+  (colada inteira, a linha falhava); o README citava uma mensagem que o programa
+  não imprime e dizia que nada fora pago quando a triagem já tinha rodado; o
+  `.env.example` defendia uma chave por pessoa logo abaixo de recomendar uma
+  chave de conta de serviço.
+
+### O que continua dependendo de alguém
+
+As oito definições pedidas ao Edson estão no topo do `TODO.md`. Sem elas o código
+roda, mas ninguém sabe quem o roda, quem revisa e para quem vai.
+
 ## Testes
 
 Os três arquivos em `tests/` chamavam `classify_items` e `summarize_items`,
@@ -579,8 +700,9 @@ funções que **nunca existiram neste repositório**, e importavam
 `utils.get_search_results` por um caminho que não resolve. Os três falhavam no
 import desde o primeiro commit: a bateria estava verde por ausência.
 
-No lugar, 66 testes das regras que decidem o que o investidor lê. Sem rede, sem
-API, sem pytest, em 0,3 segundo:
+No lugar, testes das regras que decidem o que o investidor lê (66 quando foram
+escritos; o próprio comando diz quantos são hoje). Sem rede, sem API, sem pytest,
+em menos de um segundo:
 
 ```
 python -m unittest discover -s tests

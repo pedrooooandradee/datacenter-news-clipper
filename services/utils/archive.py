@@ -24,7 +24,7 @@ import os
 import json
 import shutil
 from typing import List, Dict, Optional, Set, Tuple
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 # Paths resolved from this file, so archiving works whether the caller runs
 # main.py from the project root or services/pdf_builder.py directly.
@@ -50,11 +50,29 @@ PDF_NAME = "clipping.pdf"
 EDICAO_PATH = os.path.join(PROJECT_ROOT, "output", "edicao_atual.json")
 
 
-def registrar_edicao(when: datetime) -> None:
-    """Record when this edition was closed."""
+def registrar_edicao(when: datetime, janela_dias: Optional[int] = None) -> None:
+    """
+    Record when this edition was closed, and the first day it covers.
+
+    The first day is recorded because the window is not always seven days: a
+    run a few days late stretches it back to the previous edition, so the days
+    in between are not lost. The PDF header has to say which days it covers.
+    """
     os.makedirs(os.path.dirname(EDICAO_PATH), exist_ok=True)
+    registro = {"fechamento": when.isoformat(timespec="seconds")}
+    if janela_dias:
+        registro["inicio_janela"] = (when - timedelta(days=janela_dias)).date().isoformat()
     with open(EDICAO_PATH, "w", encoding="utf-8") as f:
-        json.dump({"fechamento": when.isoformat(timespec="seconds")}, f)
+        json.dump(registro, f)
+
+
+def inicio_da_janela() -> Optional[date]:
+    """The first civil day the current edition covers, or None if not recorded."""
+    try:
+        with open(EDICAO_PATH, "r", encoding="utf-8") as f:
+            return date.fromisoformat(json.load(f)["inicio_janela"])
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
 
 
 def data_da_edicao() -> Optional[datetime]:
@@ -119,7 +137,8 @@ def _edition_dir(when: Optional[datetime] = None) -> str:
     return path
 
 
-def archive_raw(items: List[Dict], when: Optional[datetime] = None) -> str:
+def archive_raw(items: List[Dict], when: Optional[datetime] = None,
+                janela_dias: Optional[int] = None) -> str:
     """
     Freeze the pipeline's raw output for this edition.
 
@@ -133,7 +152,7 @@ def archive_raw(items: List[Dict], when: Optional[datetime] = None) -> str:
     when = when or datetime.now()
     # This is the moment the edition was closed; everything downstream dates
     # itself from here rather than from when it happened to run.
-    registrar_edicao(when)
+    registrar_edicao(when, janela_dias)
     folder = _edition_dir(when)
     path = os.path.join(folder, RAW_NAME)
 

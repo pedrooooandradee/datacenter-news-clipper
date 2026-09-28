@@ -13,9 +13,11 @@ from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
 try:
-    from services.utils.projeto import ler_config, modelo
+    from services.utils.projeto import (
+        ler_config, modelo, descrever_erro, parar_se_sem_credito,
+    )
 except ImportError:
-    from utils.projeto import ler_config, modelo
+    from utils.projeto import ler_config, modelo, descrever_erro, parar_se_sem_credito
 
 # Load environment exactly as in the notebook
 _ = load_dotenv(find_dotenv())
@@ -90,8 +92,14 @@ def add_classifications(items: List[Dict]) -> List[Dict]:
             raw = chain.invoke({"title": title, "url": item.get("url", "")})
             result = json.loads(raw)
         except Exception as e:
+            # No credit is not a failure of this one story: every call after it
+            # fails the same way. This is the first paid call of the run, so it
+            # stops here, before half an hour of scraping.
+            parar_se_sem_credito(e, retomar_de="classify")
             # Keep the article and say so; losing it silently is the worse failure.
-            failures.append(f"{title[:70]} ({type(e).__name__})")
+            # The class name alone ("NotFoundError") hid the reason; the message
+            # says "model ... does not exist" or "invalid api key".
+            failures.append(f"{title[:70]} ({descrever_erro(e)})")
             item["class"] = "relevant"
             item["category"] = FALLBACK_CATEGORY
             item["classification_failed"] = True

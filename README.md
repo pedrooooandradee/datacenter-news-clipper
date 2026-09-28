@@ -26,252 +26,199 @@ proposals behind some of the rules, kept for the record.
 
 # 🔧 ONE-TIME SETUP
 
-**Do this section ONCE when you first get the project. You'll never need to repeat these steps.**
+**Do this section ONCE, on the computer that will run the clipping.** About 20
+minutes, most of it waiting for downloads.
+
+> **Mac only.** Every step below has been tested on macOS. There is no tested
+> route for Windows: the part that draws the PDF (WeasyPrint) needs system
+> libraries that are installed differently there. If the clipping has to run on
+> Windows, that route has to be written and tested first.
 
 ## Setup Steps Index
 
-1. [Install System Dependencies (macOS only) - CRITICAL STEP!](#step-1-install-system-dependencies-macos-only---critical-step)
-2. [Download the Project from Github](#step-2-download-the-project)
-3. [Set Up Python Environment](#step-3-set-up-python-environment)
-4. [Install Python Dependencies](#step-4-install-python-dependencies)
-5. [Configure .env file](#step-5-configure-env-file)
+1. [Install the tools (Git, Chrome, conda)](#step-1-install-the-tools)
+2. [Download the project](#step-2-download-the-project)
+3. [Create the Python environment](#step-3-create-the-python-environment)
+4. [Install the libraries](#step-4-install-the-libraries)
+5. [Configure the .env file](#step-5-configure-the-env-file)
+6. [Check that everything works](#step-6-check-that-everything-works)
 
 ---
 
-## Step 1: Install System Dependencies (macOS only) - CRITICAL STEP!
+## Step 1: Install the tools
 
-**⚠️ WARNING: This is the most error-prone step. Follow it exactly or you'll get confusing errors later.**
+Open the **Terminal** app (Applications → Utilities → Terminal). Every command
+below is typed there.
 
-**What are system dependencies?** System dependencies are essential software components or libraries that your operating system needs to run certain applications. Unlike Python dependencies, which are packages required by Python programs, system dependencies are required by the system itself or by applications that interact closely with the system, such as WeasyPrint. These dependencies often include C libraries like cairo, pango, and gdk-pixbuf, which are necessary for rendering graphics and processing images.
-
-**What happens if I skip this step?** When you try to `pip install -r requirements.txt` later, you'll see scary error messages like:
-- `error: Microsoft Visual C++ 14.0 is required`
-- `Failed building wheel for weasyprint`
-- `No module named '_cairo'`
-- `cairo >= 1.15.4 is required`
-
-### Install Homebrew (if you don't have it)
-
-**What is Homebrew?** Think of it like the Mac App Store, but for developer tools and system dependencies. Homebrew is a package manager for macOS that simplifies the installation of software and system libraries. By using Homebrew, you can quickly set up the necessary C libraries for WeasyPrint, ensuring everything is installed correctly and reducing the risk of errors during setup.
-
-**How do I know if I have it?** Open Terminal and type:
-```bash
-brew --version
-```
-
-If you see a version number, you're good. If you see "command not found", install it:
+### Git
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+git --version
 ```
 
-### Install the Required System Libraries
+If a version number appears, you have it. If macOS offers to install the
+"command line developer tools", accept — that is how Git arrives on a Mac.
 
-**Why each one is needed:**
-- **cairo**: Handles 2D graphics rendering (drawing text, shapes in PDFs)
-- **pango**: Handles text layout and font rendering  
-- **gdk-pixbuf**: Handles image processing
-- **libffi**: Allows Python to talk to C libraries
+### Google Chrome
 
-Install all four at once:
+The collection stage opens each article in an invisible Chrome. **Chrome has to
+be installed** — download it from [google.com/chrome](https://www.google.com/chrome/)
+if it is not already there. The piece that lets the program drive Chrome is
+downloaded automatically the first time it runs.
+
+### conda (through Miniforge)
+
+**Why?** The program draws the PDF with WeasyPrint, which needs two system
+libraries, `pango` and `cairo`, that Python's `pip` cannot install. conda can.
+It also brings its own Python 3.12 — a new Mac comes with Python 3.9, and the
+libraries this project uses need 3.10 or newer.
+
+If `conda --version` already prints a number (Anaconda or Miniconda installed),
+skip this — Step 3 takes care of the one trap an existing Anaconda can set.
+Otherwise, install Miniforge:
+
 ```bash
-brew install cairo pango gdk-pixbuf libffi
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
 ```
 
-**What you'll see:** Homebrew will download and compile these libraries. This might take up to 10 minutes and you'll see lots of text scrolling by. This is normal.
+Answer `yes` to the licence and to "initialize conda". Then **close the Terminal
+and open it again**, and check:
 
-**How to verify it worked:** After installation completes, check that they're installed:
 ```bash
-brew list | grep -E "(cairo|pango|gdk-pixbuf|libffi)"
+conda --version
 ```
 
-You should see all four names listed.
-
-### Install Google Chrome
-
-The scraping stage opens each article in a headless Chrome, driven by Selenium.
-**Chrome has to be installed on the machine** — `pip` does not install a
-browser, and `webdriver-manager` downloads only the driver, not Chrome itself.
-Without it, the `scrape` stage fails on every article.
-
-Download it from [google.com/chrome](https://www.google.com/chrome/) if it is
-not already there.
+> **Why not Homebrew?** Earlier versions of this README used Homebrew. That route
+> was never tested on a machine other than the one the program was written on,
+> and on a new Mac it fails: `python3` there is 3.9. One route, tested, is better
+> than two where one is broken. (The environment that runs the clipping today was
+> built with exactly the conda command in Step 3.)
 
 ---
 
-## Step 2: Download the Project
+## Step 2: Download the project
 
-### How to Get the Project Files on Your Computer
+Go to the folder where you keep projects — **not iCloud Drive, not Dropbox**:
+those sync file by file and corrupt the project's history. A folder like
+`~/dev` is ideal:
 
-To work with this project, you need to get a copy of its files from GitHub onto your computer. This process is called "cloning" a repository. Here's how you can do it step-by-step:
+```bash
+mkdir -p ~/dev && cd ~/dev
+git clone https://github.com/pedrooooandradee/datacenter-news-clipper.git
+cd datacenter-news-clipper
+```
 
-1. **Install Git (if you don't have it):**
-   - **What is Git?** Git is a tool that helps you download and manage code from the internet.
-   - **How to check if you have it:** Open Terminal (on macOS) or Command Prompt (on Windows) and type:
-     ```bash
-     git --version
-     ```
-     If you see a version number, you have Git installed. If not, you'll need to install it.
-   - **How to install Git:**
-     - **macOS:** You can install Git using Homebrew by typing:
-       ```bash
-       brew install git
-       ```
-     - **Windows:** Download the installer from [git-scm.com](https://git-scm.com/) and follow the installation instructions.
-
-2. **Clone the Repository:**
-   - **What does "clone" mean?** Cloning is like making a copy of the project files from GitHub's server to your computer.
-   - **How to clone:**
-     - On the GitHub page of this repository, locate and click the green "Code" button.
-     - Copy the URL that appears.
-     - In your Terminal (macOS) or Command Prompt (Windows), navigate to your desired directory using the `cd` command. For example:
-       ```bash
-       cd path/to/your/folder
-       ```
-     - Execute the following command:
-       ```bash
-       git clone https://github.com/pedrooooandradee/datacenter-news-clipper.git
-       ```
-       This is where version 2 lives. The older repository under `Orimadros`
-       holds version 1 and is no longer maintained — do not clone that one.
-     - Hit Enter to initiate the download of the project files to your system.
-
-3. **Navigate to the Project Folder:**
-   - After cloning, you need to go into the project folder to start working with the files.
-   - Use the `cd` command to navigate into the project folder. For example, if the project folder is named `datacenter-news-clipper`, type:
-     ```bash
-     cd datacenter-news-clipper
-     ```
-
-Now you have a local copy of the project on your computer and are ready to start working with it!
+This is where version 2 lives. The older repository under `Orimadros` holds
+version 1 and is no longer maintained — do not clone that one.
 
 ---
 
-## Step 3: Set Up Python Environment
+## Step 3: Create the Python environment
 
-### What is a Virtual Environment?
+Two layers. First a conda environment that holds Python 3.12 and the PDF
+libraries — once per computer.
 
-**Think of it as:** A separate, clean room in your computer for this project. It keeps all the project's dependencies isolated so they don't interfere with other Python projects on your computer, which might have different versions of the same dependencies.
-
-**Why do we need it?** Different projects need different versions of libraries. A venv prevents conflicts and keeps everything organized.
-
-### Create the Virtual Environment
+**Which chip does the Mac have?**  menu → About This Mac. "Chip: Apple M1" (or
+M2, M3…) is Apple; "Processor: Intel" is Intel. Almost every Mac from 2021 on is
+Apple.
 
 ```bash
-python -m venv venv
+CONDA_SUBDIR=osx-arm64 conda create -y -p ~/.clipping247-python --override-channels -c conda-forge python=3.12 pango cairo gdk-pixbuf libffi
 ```
 
-**What just happened?** You created a folder called `venv` that will store all the project's Python dependencies.
+On an **Intel** Mac, drop the `CONDA_SUBDIR=osx-arm64` at the start.
 
-> **⚠️ If you skipped Step 1, or Homebrew is not an option on your machine,
-> this exact command produces a broken project.** It installs WeasyPrint fine
-> and then fails at import with `cannot load library 'libpango-1.0-0'`.
->
-> The second route is conda, which brings `libpango` and `libcairo` itself. This
-> is how the machine the program was written on is set up — it has no Homebrew.
-> Create the environment once, then build the venv from *its* Python:
->
-> ```bash
-> conda create -p ~/.clipping247-python -c conda-forge python=3.12 pango cairo
-> ~/.clipping247-python/bin/python3 -m venv venv
-> ```
->
-> Either route works. **Mixing them does not.**
->
-> On Apple Silicon with the Homebrew route, if it still fails, Homebrew installs
-> into `/opt/homebrew/lib` and WeasyPrint does not look there. Add
-> `PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig` to your `.env` (Step 5).
+> **Why `CONDA_SUBDIR=osx-arm64`?** Found on 28 Sep 2026, testing this very
+> recipe from scratch. An Anaconda installed for Intel — common, even on Apple
+> Macs — builds Intel environments by default. Python then runs translated
+> (Rosetta), everything installs and every test passes, and the Chrome it drives
+> freezes on every heavy news page: 30-second timeouts on Valor and G1, which the
+> Apple build opens in under a second. The prefix forces the Apple build.
 
-### Activate the Virtual Environment
+Then, inside the project folder, a virtual environment (`venv`) built **from
+that Python** — this is the step that makes the PDF libraries visible:
 
-From your project folder, run:
 ```bash
+~/.clipping247-python/bin/python3 -m venv venv
 source venv/bin/activate
+python --version
+python -c "import platform; print(platform.machine())"
 ```
 
-**How do I know it's working?** You should see `(venv)` at the beginning of your terminal prompt.
+The prompt now starts with `(venv)`, and the two last lines have to print:
+
+- **Python 3.12.something.** If it prints 3.9, the venv was built from the Mac's
+  own Python: delete the `venv` folder and repeat the block above.
+- **arm64**, on an Apple Mac (`x86_64` on an Intel one). `x86_64` on an Apple Mac
+  means the conda environment was built for Intel: delete both
+  `~/.clipping247-python` and `venv`, and repeat from the conda command.
 
 ---
 
-## Step 4: Install Python Dependencies
-
-**What is requirements.txt?** A shopping list for code. It lists all the Python libraries this project needs installed in its environment to work.
-
-**Why do we install them in the venv?** So they're only available for this project and don't mess with your other Python projects.
-
-### Install All Required Libraries
+## Step 4: Install the libraries
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.lock.txt
 ```
 
-**What just happened?** Python downloaded the 11 libraries listed in
-`requirements.txt`, plus everything those depend on — about 160 packages and
-1.5 GB in `venv/`. That is normal, and `venv/` is not in the repository.
+`requirements.lock.txt` holds the **exact versions** that produced real
+editions. `requirements.txt` holds only the minimum versions and would pull
+whatever is newest on the day you install — combinations nobody has tested. If
+something breaks after a reinstall, reinstall from the lock before touching any
+code.
 
-**Which Python?** It is developed and run on **Python 3.12**. Anything from 3.10
-up should work; below that, it will not.
-
-**If you get errors here:** Make sure you completed Step 1 (system dependencies) and Step 3 (activated venv).
+It downloads about 80 packages. That is normal, and `venv/` is not in the
+repository.
 
 ---
 
-## Step 5: Configure .env file
+## Step 5: Configure the .env file
 
-### What is a .env File?
-
-**Think of it as:** A file that stores secret information (like passwords or API keys) that the program needs but shouldn't be shared publicly. (That's why I didn't include it in the public project you downloaded)
-
-**What is an API key?** It's like a password that lets this program talk to OpenAI's services. Each time the program uses AI features, it costs money.
-
-**Why is this separate?** Because API keys are personal and should never be shared or uploaded to the internet.
-
-### Set Up Your .env File
-
-There is a template in the repository. Copy it and fill it in:
+The `.env` file holds the OpenAI key — the program pays for its AI calls with it
+(about US$ 0.20 per edition). It is never in the repository. Create it from the
+template:
 
 ```bash
 cp .env.example .env
 ```
 
-The only variable the program requires is `OPENAI_API_KEY`. Ask whoever runs the
-project at 247 for a key on the **company account** — not a personal one, which
-dies with the person who created it.
+Open `.env` and replace the placeholder with the key. The key comes from the
+**company's OpenAI account** (organisation `elementum3`), created by whoever
+administers it — never a personal key, which stops working when its owner leaves.
 
+**CRITICAL:** Never share this file with anyone. It's connected to a credit card
+and costs money every time it's used.
+
+---
+
+## Step 6: Check that everything works
+
+```bash
+python -m unittest discover -s tests
 ```
-OPENAI_API_KEY=your_actual_api_key_here
-```
 
-`.env.example` also documents `PKG_CONFIG_PATH`, which only matters if the PDF
-fails to build (see Step 3).
+It has to end in `OK`. It is free and needs no internet. If it fails, the
+installation is wrong somewhere — do not run the clipping.
 
-**CRITICAL:** Never share this file with anyone. It's connected to a credit card and costs money every time it's used.
+Then open the project in **Cursor** (File → Open Folder → the project folder).
+The free plan is enough: the program runs in the terminal, and Cursor's AI is not
+needed. VS Code or the plain Terminal work just as well.
+
+You are ready. The day-to-day guide is `LEIA-ME.md`.
 
 ---
 
 ## Setup Troubleshooting
 
-**Issue**: "brew: command not found"
-**Solution**: Homebrew isn't installed. Go back to Step 1.
-
-**Issue**: "Error: Cannot install cairo because conflicting formulae are installed"
-**Solution**: You have old versions. Update them:
-```bash
-brew update
-brew upgrade cairo pango gdk-pixbuf libffi
-```
-
-**Issue**: Installation seems stuck
-**Solution**: Be patient. Compiling C libraries takes time. If it's been over 20 minutes, press Ctrl+C and try again, or ask ChatGPT if you're doing it right.
-
-**Issue**: Permission errors
-**Solution**: Don't use `sudo` with Homebrew. Fix permissions instead:
-```bash
-sudo chown -R $(whoami) $(brew --prefix)/*
-```
-
-**Issue**: `No module named '...'` when running Python
-**Solution**: Make sure venv is activated (`source venv/bin/activate`) and you ran `pip install -r requirements.txt`
+| Problem | Solution |
+|---|---|
+| `conda: command not found` | Close and reopen the Terminal after installing Miniforge. Still missing: install again and answer `yes` to "initialize conda" |
+| `python --version` says 3.9 inside the venv | The venv was built from the Mac's Python. Delete `venv/` and repeat Step 3 exactly |
+| `No module named '...'` | The venv is not active (`source venv/bin/activate`), or Step 4 was skipped |
+| `cannot load library 'libpango-1.0-0'` | The venv was not built from `~/.clipping247-python/bin/python3`. Delete `venv/` and repeat Step 3 |
+| `pip install` fails compiling something | Almost always the wrong Python (3.9). Check with `python --version` |
+| Almost every page is listed as "descartadas por falha de coleta", with `timeout no carregamento` or `TimeoutException` | The environment is Intel on an Apple Mac. `python -c "import platform; print(platform.machine())"` says `x86_64`. Redo Step 3 with `CONDA_SUBDIR=osx-arm64` |
 
 ---
 
@@ -288,9 +235,13 @@ Code: **Terminal → New Terminal**, then:
 source venv/bin/activate
 ```
 
-The prompt starts showing `(venv)`. There is no Run button configured in this
-repository — no `.vscode/launch.json`, and `.vscode/` is gitignored — so run
-things from the terminal.
+The prompt starts showing `(venv)`. In Cursor and VS Code the repository's own
+settings (`.vscode/`) already open every new terminal with the venv active — if
+`(venv)` is there, skip the command above. There is no Run button: everything
+runs from the terminal.
+
+Every full run also saves everything it printed to `output/logs/`, so the
+warnings can be read again after the terminal is closed.
 
 ## The three commands
 
@@ -315,15 +266,9 @@ three of them. One subject, one owner.
 
 ## Before you send
 
-Read what the program prints at the end. One warning matters more than the rest:
-
-```
-🚨 RESUMOS CITAM NÚMERO QUE NÃO ESTÁ NA MATÉRIA
-```
-
-It means a summary quotes a figure the program could not find anywhere in the
-article. **Open the link and check the number before sending.** On the
-21 Sep 2026 edition, three published figures did not exist in the source.
+Do the item-by-item review in `LEIA-ME.md` ("Revisão da edição, item a item").
+Reading the terminal is not enough: on the 28 Sep 2026 edition, 11 of 36 stories
+needed a correction and none of those errors showed up in the terminal.
 
 ## Your results
 
@@ -340,9 +285,8 @@ article. **Open the link and check the number before sending.** On the
 | Problem | Solution |
 |---|---|
 | `No module named '...'` | The venv is not active. `source venv/bin/activate` |
-| `cannot load library 'libpango-1.0-0'` | Step 1 / Step 3. The venv was built without pango and cairo |
-| OpenAI API error | `.env` missing or the key is wrong. `cp .env.example .env` |
-| Chrome or driver errors in `scrape` | Google Chrome is not installed. Step 1 |
+| `cannot load library 'libpango-1.0-0'` | Step 3. The venv was not built from `~/.clipping247-python/bin/python3` |
+| Any line starting with `⛔` | `LEIA-ME.md`, "Quando quebrar", lists each one and what to do. Most stop before anything is paid |
 | `(venv)` not showing | Run `source venv/bin/activate` from the project folder |
 | PDF has no logo in the header | `configs/247.original.jpg` was deleted. `git checkout configs/247.original.jpg` |
 | PDF generation fails | `configs/clipping_template.html` is the only file the PDF truly needs; the logo is optional |

@@ -69,6 +69,9 @@ output/archive/
 output/cache/
 # Trava de execução: guarda o pid de quem está rodando, só faz sentido na máquina.
 output/execucao.lock
+# Registro de cada execução: lista títulos, fontes e o que foi descartado na
+# semana, isto é, o trabalho para o cliente. Fica na máquina, como o arquivo.
+output/logs/
 *.log
 
 # Jupyter Notebook

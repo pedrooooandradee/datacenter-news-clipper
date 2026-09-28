@@ -31,9 +31,11 @@ from langchain_core.prompts import (
 from langchain_openai import ChatOpenAI
 
 try:
-    from services.utils.projeto import ler_config, modelo
+    from services.utils.projeto import (
+        ler_config, modelo, descrever_erro, parar_se_sem_credito,
+    )
 except ImportError:
-    from utils.projeto import ler_config, modelo
+    from utils.projeto import ler_config, modelo, descrever_erro, parar_se_sem_credito
 
 MAX_CHARS = 40000
 
@@ -92,10 +94,13 @@ def add_summaries(items: List[Dict]) -> List[Dict]:
                 if len(texto) >= MIN_SUMMARY_CHARS:
                     break
             except Exception as e:
+                # Credit can run out mid-edition; retrying cannot fix it.
+                parar_se_sem_credito(e, retomar_de="summarize")
                 texto = ""
                 if tentativa == 2:
                     falhas.append(f"{item.get('source', '?')} — "
-                                  f"{item.get('title', '')[:50]} ({type(e).__name__})")
+                                  f"{item.get('title', '')[:50]} "
+                                  f"({descrever_erro(e)})")
 
         item["summary"] = texto
         if len(texto) < MIN_SUMMARY_CHARS:

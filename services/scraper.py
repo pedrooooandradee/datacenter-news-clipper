@@ -40,10 +40,8 @@ from datetime import datetime, timezone
 
 import trafilatura
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import WebDriverException, TimeoutException
-from webdriver_manager.chrome import ChromeDriverManager
 
 # Minimum body length. Measured over the 53 real articles, "shorter than this OR a
 # block marker" catches all 8 genuine failures without discarding a correct article.
@@ -93,6 +91,10 @@ BLOCK_MARKERS = [
 # Driver
 # ─────────────────────────────────────────────────────────────────────
 
+# The browser's own user-agent minus "Headless", found once per run (see _build).
+_AGENTE: Optional[str] = None
+
+
 class DriverPool:
     """
     One Chrome, reused across articles, with state cleared between them.
@@ -107,30 +109,58 @@ class DriverPool:
         self.recycle_every = recycle_every
         self.driver = None
         self._served = 0
-        self._driver_path = None
 
-    def _build(self):
+    def _opcoes(self, agente: Optional[str] = None) -> Options:
         opts = Options()
         if self.headless:
             opts.add_argument("--headless")
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-gpu")
         opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument(
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/114.0.0.0 Safari/537.36"
-        )
         # "eager" returns once the DOM is ready instead of waiting for every image
         # and tracker. Three of twenty URLs, including Valor and g1, timed out at
         # 60s under the default strategy and loaded in 4-13s under this one.
         opts.page_load_strategy = "eager"
+        if agente:
+            opts.add_argument(f"--user-agent={agente}")
+        return opts
 
-        # ChromeDriverManager().install() ran once per article before; resolve once.
-        if self._driver_path is None:
-            self._driver_path = ChromeDriverManager().install()
+    def _agente(self) -> Optional[str]:
+        """
+        The installed Chrome's user-agent, minus the "Headless" marker.
 
-        driver = webdriver.Chrome(service=Service(self._driver_path), options=opts)
+        The browser used to announce itself as Chrome 114, hard-coded, while the
+        installed Chrome was years newer — an identity no real visitor has. It now
+        reports its true version without "Headless", the word sites block on.
+
+        It is passed as a launch flag, not set afterwards through CDP. The CDP
+        override made Chrome stop sending its client hints (sec-ch-ua) altogether
+        — measured 28 set 2026 against a local server — and "Chrome 153 with no
+        client hints" is itself an identity no real Chrome has. The flag changes
+        the string and leaves the hints alone. The price is one short extra launch
+        per run, to read the version.
+        """
+        global _AGENTE
+        if _AGENTE is None and self.headless:
+            try:
+                sonda = webdriver.Chrome(options=self._opcoes())
+                try:
+                    _AGENTE = sonda.execute_script("return navigator.userAgent") \
+                        .replace("HeadlessChrome", "Chrome")
+                finally:
+                    sonda.quit()
+            except Exception as e:
+                print(f"⚠️  Não consegui ler o user-agent do Chrome ({type(e).__name__}); "
+                      f"a coleta segue com o padrão.")
+                _AGENTE = ""
+        return _AGENTE or None
+
+    def _build(self):
+        # The driver is found by Selenium Manager, built into Selenium since 4.6: it
+        # matches the installed Chrome and downloads the driver when needed. The
+        # separate webdriver-manager package did the same job and was one more
+        # dependency to fall out of step with Chrome (removed 28 set 2026).
+        driver = webdriver.Chrome(options=self._opcoes(self._agente()))
         driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
         return driver
 
@@ -310,6 +340,7 @@ def _parse_date(value: str) -> Optional[datetime]:
     if not value:
         return None
     text = value.strip().replace("Z", "+00:00")
+    so_o_dia = bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", text))
     try:
         dt = datetime.fromisoformat(text)
     except ValueError:
@@ -320,8 +351,17 @@ def _parse_date(value: str) -> Optional[datetime]:
             dt = datetime.fromisoformat(match.group(1))
         except ValueError:
             return None
+        so_o_dia = True
     if dt.tzinfo is None:
+        # "2026-09-28T00:00:00" with no offset is a date written as a timestamp.
+        so_o_dia = so_o_dia or (dt.hour, dt.minute, dt.second) == (0, 0, 0)
         dt = dt.replace(tzinfo=timezone.utc)
+    if so_o_dia:
+        # A page that gives only the day means that day. Read as midnight UTC it
+        # is 21h the evening before in Brasília, and the PDF and the date window
+        # both moved it back a day. Noon UTC is the same day anywhere in the
+        # Americas and Europe.
+        dt = dt.replace(hour=12)
     return dt
 
 

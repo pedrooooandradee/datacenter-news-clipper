@@ -25,13 +25,16 @@ never the news.google.com wrapper.
 
 import json
 import os
-from typing import Dict, List, Tuple
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
 try:
     from services.utils.projeto import caminho_config
+    from services.utils.archive import data_da_edicao, DIAS_ENTRE_EDICOES
     from services import empresas
 except ImportError:
     from utils.projeto import caminho_config
+    from utils.archive import data_da_edicao, DIAS_ENTRE_EDICOES
     import empresas
 
 OVERRIDES_PATH = caminho_config("overrides.json")
@@ -39,19 +42,43 @@ OVERRIDES_PATH = caminho_config("overrides.json")
 BLOCOS_COM_MOTIVO = ("removidas", "categoria", "resumo", "dedup")
 
 
+class OverridesIlegivel(ValueError):
+    """overrides.json exists but cannot be read, so no correction can be applied."""
+
+
 def carregar(caminho: str = OVERRIDES_PATH) -> Dict:
-    """Read overrides.json, or return an empty set of blocks if it is not there."""
+    """
+    Read overrides.json, or return an empty set of blocks if it is not there.
+
+    A file with a syntax error raises OverridesIlegivel. It used to be skipped
+    with a warning, and the PDF was built anyway — with none of the week's
+    corrections, the usual "PDF gerado" at the end, and the archive overwritten
+    with that uncorrected version. A missing comma is the most common mistake in
+    hand-edited JSON, so it has to stop the build, not slip past it.
+    """
     if not os.path.exists(caminho):
         return {}
     try:
         with open(caminho, "r", encoding="utf-8") as f:
             dados = json.load(f)
     except json.JSONDecodeError as e:
-        print(f"⚠️  {os.path.basename(caminho)} está com erro de sintaxe e foi IGNORADO "
-              f"({e}). Nenhuma correção manual foi aplicada — confira a vírgula ou a "
-              f"aspa da linha {getattr(e, 'lineno', '?')}.")
-        return {}
+        raise OverridesIlegivel(
+            f"{os.path.basename(caminho)} tem um erro de sintaxe na linha "
+            f"{e.lineno}, coluna {e.colno} ({e.msg}). Quase sempre é uma vírgula que "
+            f"faltou ou sobrou, ou uma aspa sem par, nessa linha ou na de cima."
+        ) from e
     return dados if isinstance(dados, dict) else {}
+
+
+def _dia(valor) -> Optional[date]:
+    """The date of a correction, written 2026-09-28 or 28/09/2026."""
+    texto = str(valor or "").strip()
+    for formato in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(texto, formato).date()
+        except ValueError:
+            pass
+    return None
 
 
 def _indexar(items: List[Dict]) -> Dict[str, Dict]:
@@ -84,7 +111,7 @@ def aplicar(items: List[Dict], caminho: str = OVERRIDES_PATH) -> Tuple[List[Dict
         url = entrada.get("url", "")
         item = por_url.get(url)
         if not item:
-            nao_casou.append(f"fonte_nome: {url[:70]}")
+            nao_casou.append((f"fonte_nome: {url[:70]}", entrada.get("data")))
             continue
         antes = item.get("source", "")
         item["source"] = entrada.get("para", antes)
@@ -95,7 +122,7 @@ def aplicar(items: List[Dict], caminho: str = OVERRIDES_PATH) -> Tuple[List[Dict
         url = entrada.get("url", "")
         item = por_url.get(url)
         if not item:
-            nao_casou.append(f"categoria: {url[:70]}")
+            nao_casou.append((f"categoria: {url[:70]}", entrada.get("data")))
             continue
         exige_motivo("categoria", entrada, item.get("title", "")[:50])
         antes = item.get("category", "")
@@ -109,7 +136,7 @@ def aplicar(items: List[Dict], caminho: str = OVERRIDES_PATH) -> Tuple[List[Dict
         url = entrada.get("url", "")
         item = por_url.get(url)
         if not item:
-            nao_casou.append(f"resumo: {url[:70]}")
+            nao_casou.append((f"resumo: {url[:70]}", entrada.get("data")))
             continue
         texto = str(entrada.get("texto", "") or "").strip()
         if not texto:
@@ -131,7 +158,9 @@ def aplicar(items: List[Dict], caminho: str = OVERRIDES_PATH) -> Tuple[List[Dict
     for url in grifadas:
         item = por_url.get(url)
         if not item:
-            nao_casou.append(f"highlight: {url[:70]}")
+            # A highlight that matches nothing harms nobody — it just does not
+            # highlight. It never counts as this week's typo.
+            nao_casou.append((f"highlight: {url[:70]}", "antiga"))
             continue
         item["highlight"] = True
     if grifadas:
@@ -142,14 +171,14 @@ def aplicar(items: List[Dict], caminho: str = OVERRIDES_PATH) -> Tuple[List[Dict
         manter = entrada.get("manter", "")
         principal = por_url.get(manter)
         if not principal:
-            nao_casou.append(f"dedup: {manter[:70]}")
+            nao_casou.append((f"dedup: {manter[:70]}", entrada.get("data")))
             continue
         exige_motivo("dedup", entrada, principal.get("title", "")[:50])
         fundidas = []
         for url in entrada.get("fundir") or []:
             outro = por_url.get(url)
             if not outro:
-                nao_casou.append(f"dedup/fundir: {str(url)[:70]}")
+                nao_casou.append((f"dedup/fundir: {str(url)[:70]}", entrada.get("data")))
                 continue
             fundidas.append(outro.get("source", "?"))
             outro["_override_removida"] = True
@@ -165,7 +194,7 @@ def aplicar(items: List[Dict], caminho: str = OVERRIDES_PATH) -> Tuple[List[Dict
     for entrada in dados.get("removidas") or []:
         url = entrada.get("url", "")
         if url not in por_url:
-            nao_casou.append(f"removida: {url[:70]}")
+            nao_casou.append((f"removida: {url[:70]}", entrada.get("data")))
             continue
         exige_motivo("removidas", entrada, por_url[url].get("title", "")[:50])
         removidas.add(url)
@@ -195,12 +224,42 @@ def aplicar(items: List[Dict], caminho: str = OVERRIDES_PATH) -> Tuple[List[Dict
             f"o que transforma este arquivo em exemplo para os prompts: "
             + "; ".join(sem_motivo[:5])
         )
-    if nao_casou:
+    # The file keeps every week's corrections — a removal has to survive the
+    # following week, when the same URL can come back. So most entries that
+    # match nothing are simply old, and listing them all buried the one that
+    # mattered: a correction written THIS week whose URL has a typo, which means
+    # the story it was meant to fix is going to the client unfixed.
+    #
+    # Dates are compared as dates. Compared as text, "05/10/2026" sorted before
+    # "2026-10-05" and this week's typo was filed as old. The cut sits a few days
+    # before the closing, because `--from` rewrites the closing with the day it
+    # is run: a correction dated Monday must still count as this edition's when
+    # the PDF is rebuilt on Tuesday.
+    fechamento = data_da_edicao()
+    corte = (fechamento.date() - timedelta(days=DIAS_ENTRE_EDICOES)) if fechamento else None
+    desta_semana, antigas = [], 0
+    for texto, data in nao_casou:
+        if data == "antiga":
+            antigas += 1
+            continue
+        dia = _dia(data)
+        if data and dia is None:
+            desta_semana.append(f"{texto}  (data ilegível: {data!r} — use AAAA-MM-DD)")
+        elif dia is None or corte is None or dia >= corte:
+            desta_semana.append(texto)
+        else:
+            antigas += 1
+    if desta_semana:
         relatorio.append(
-            f"⚠️  {len(nao_casou)} correções não bateram com nenhuma notícia desta "
-            f"edição (URL antiga ou errada):"
+            f"⚠️  {len(desta_semana)} correções DESTA edição não bateram com nenhuma "
+            f"notícia — confira a URL (e ponha o campo 'data' nas que não têm):"
         )
-        relatorio.extend(f"     - {entrada}" for entrada in nao_casou[:10])
+        relatorio.extend(f"     - {entrada}" for entrada in desta_semana[:15])
+        if len(desta_semana) > 15:
+            relatorio.append(f"     … e mais {len(desta_semana) - 15}")
+    if antigas:
+        relatorio.append(f"   ({antigas} correções de edições anteriores não se aplicam "
+                         f"a esta — normal)")
 
     return final, relatorio
 

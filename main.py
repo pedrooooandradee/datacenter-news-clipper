@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import argparse
+import traceback
 from pathlib import Path
 
 # Add project root to sys.path to allow absolute imports
@@ -9,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from services.utils.get_search_results import get_search_results
 from services.classifier import (
@@ -24,6 +25,8 @@ from services.deduplicator import (
 )
 from services.pdf_builder import build_pdf
 from services.utils.archive import archive_raw, edicao_anterior, url_chave
+from services.utils.projeto import modelo, sem_credito, descrever_erro, SemCredito
+from services.utils.datetime_utils import dia_local
 from services.utils import cache
 from services.utils import trava
 from services.utils.fontes import apply_tier_gate
@@ -102,14 +105,9 @@ def drop_failed_and_stale(items, days: int = 7):
     """
     Remove what the collector failed to fetch, and what the page itself says is old.
 
-    `days` HAS TO MATCH the window in configs/queries.json, and today nothing
-    enforces that. The number lives in three independent places: every query in
-    queries.json carries its own "days", this default, and the header line in
-    configs/clipping_template.html, which says "Week …" off its own hardcoded 7.
-    Widen queries.json to 14 for a fortnightly edition and leave this at 7, and
-    the whole second week arrives marked `date_outside_window` — a mark that is
-    written to the JSON, printed once in the terminal, and never rendered in the
-    PDF. The reader gets a 13-day-old story under a header that says one week.
+    `days` is the edition's window, computed once by janela_desta_edicao() and
+    passed to the search, to this filter and to the PDF header. It used to be a
+    separate 7 in each of the three, with nothing keeping them equal.
 
     Two separate problems, both of which reached the PDF:
 
@@ -122,7 +120,10 @@ def drop_failed_and_stale(items, days: int = 7):
     published on the morning the window opens is this week's news, and cutting at
     "now minus 168 hours" would have dropped six good articles from the sample week.
     """
-    window_start = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    # The calendar of this computer, the same one the window and the PDF header are
+    # counted in. It used to be UTC here, so a run after 21h in Brasília dropped
+    # the first day the header said it covered.
+    window_start = (datetime.now() - timedelta(days=days)).date()
     hard_cutoff = window_start - timedelta(days=STALE_MARGIN_DAYS)
 
     kept, no_body, stale, unverified, borderline = [], [], [], [], []
@@ -143,7 +144,7 @@ def drop_failed_and_stale(items, days: int = 7):
             kept.append(item)
             continue
 
-        published = page_date.date()
+        published = dia_local(page_date)
         if published < hard_cutoff:
             stale.append(f"{label} [publicada em {published}]")
             continue
@@ -176,6 +177,143 @@ def drop_failed_and_stale(items, days: int = 7):
     return kept
 
 
+# How far back an edition looks: the configured week, stretched by at most a few
+# days when the run is late. A first version (28 set 2026) stretched it all the way
+# back to the previous edition, up to 21 days. An independent review the same day
+# showed why that was wrong, with two measurements:
+#
+# - output/archive/ lives on ONE computer and is not in git. A machine whose copy
+#   had stopped two editions back stretched the window to 21 days and compared the
+#   repeats against the stale edition, so the two editions sent from another
+#   computer came back, whole, under a three-week header.
+# - Google News returns at most 100 entries per query, and the two busiest queries
+#   already fill them within 7 days (81 and 80 of 100). A 14-day window recovers
+#   almost nothing of a skipped week in exactly the queries that matter.
+#
+# So a skipped week is not recovered, and the program says so instead of promising
+# otherwise. A run one to three days late is: those days are few, and still fit.
+JANELA_PADRAO = 7
+ATRASO_TOLERADO = 3
+
+
+def janela_desta_edicao(agora=None):
+    """
+    Days this edition covers, and a line explaining why.
+
+    The line starts with ⚠️ when the last edition on this computer is too old to
+    be the real previous one: either a week was skipped or editions went out from
+    another computer. The program cannot tell which, so it says both.
+    """
+    agora = agora or datetime.now()
+    try:
+        with open(PROJECT_ROOT / "configs/queries.json", "r", encoding="utf-8") as f:
+            configurado = max([c.get("days", JANELA_PADRAO) for c in json.load(f)]
+                              or [JANELA_PADRAO])
+    except (OSError, ValueError):
+        configurado = JANELA_PADRAO
+
+    nome, _ = edicao_anterior(agora)
+    if not nome:
+        return configurado, "não há edição anterior neste computador — janela padrão"
+
+    dias = (agora.date() - datetime.strptime(nome, "%Y-%m-%d").date()).days
+    if dias <= configurado:
+        return configurado, f"a última edição é de {nome}"
+    if dias <= configurado + ATRASO_TOLERADO:
+        return dias, (f"a última edição foi há {dias} dias ({nome}); a janela vai até "
+                      f"ela, para os dias de atraso não se perderem")
+    return configurado, (
+        f"⚠️  a última edição NESTE COMPUTADOR é de {nome}, há {dias} dias.\n"
+        f"     Se uma semana foi pulada: o que saiu nela NÃO entra nesta edição "
+        f"(a janela fica em {configurado} dias).\n"
+        f"     Se houve edições enviadas de outro computador: pare agora (Ctrl+C) e "
+        f"copie a pasta delas para output/archive/ — sem isso, notícias que o "
+        f"cliente já recebeu podem voltar")
+
+
+def verificar_modelos(cliente=None) -> bool:
+    """
+    Check the key and every configured model before anything is paid for.
+
+    A retired model or a revoked key used to surface halfway through the run, as
+    a bare exception class name in a list of failures, after the search and the
+    scrape had already been done. The README then pointed at the key even when
+    the model was the problem. This asks the API about each model — a metadata
+    lookup that costs no tokens — and stops in seconds with the actual cause.
+
+    What it cannot see is an account with no credit: the lookup is free, so it
+    answers either way. That shows up on the first paid call, the title triage,
+    which stops the run right there (SemCredito) instead of keeping every story
+    and scraping for half an hour before the summaries fail.
+    """
+    import openai
+    if cliente is None:
+        chave = os.getenv("OPENAI_API_KEY")
+        if not chave:
+            print("⛔ Não há OPENAI_API_KEY no arquivo .env. Nada foi gasto.\n"
+                  "   Crie o .env a partir do molde (cp .env.example .env) e ponha a chave.")
+            return False
+        cliente = openai.OpenAI(api_key=chave)
+
+    # The embedding model only pre-groups similar stories; deduplicator.py already
+    # carries on without it. Stopping the whole edition over it would be worse
+    # than the problem, so it gets a warning.
+    so_avisa = {modelo("embedding")} - {modelo(e) for e in
+                                        ("triagem", "resumo", "ficha", "reclassificacao", "dedup")}
+
+    etapas = ("triagem", "resumo", "ficha", "reclassificacao", "dedup", "embedding")
+    for nome in sorted({modelo(e) for e in etapas}):
+        try:
+            cliente.models.retrieve(nome)
+        except openai.AuthenticationError:
+            print("⛔ A OpenAI recusou a chave do .env (errada ou revogada). Nada foi gasto.\n"
+                  "   Peça uma chave válida a quem administra a organização elementum3 na "
+                  "OpenAI.")
+            return False
+        except (openai.NotFoundError, openai.PermissionDeniedError) as e:
+            if nome in so_avisa:
+                print(f"⚠️  O modelo de embedding '{nome}' não respondeu "
+                      f"({descrever_erro(e)[:80]}). A edição sai, mas sem o agrupamento "
+                      f"prévio de parecidas: sobram mais repetidas para a revisão.\n"
+                      f"     Avise quem cuida do programa.")
+                continue
+            if isinstance(e, openai.PermissionDeniedError):
+                # Not a retired model: the key is not allowed to use it, or — with
+                # a restricted key — not even allowed to look it up. Changing the
+                # model in modelos.json, which the old message said, fixes neither.
+                print(f"⛔ A chave não tem permissão para o modelo '{nome}'. Nada foi "
+                      f"gasto.\n"
+                      f"   Peça a quem administra a organização elementum3 na OpenAI para "
+                      f"liberar este modelo no projeto da chave (e, se a chave for "
+                      f"'Restricted', a permissão 'Models: Read').\n"
+                      f"   NÃO troque o modelo em configs/modelos.json: o problema é a "
+                      f"permissão, não o modelo.")
+                return False
+            print(f"⛔ O modelo '{nome}' não existe mais na OpenAI (aposentado ou nome "
+                  f"errado). Nada foi gasto.\n"
+                  f"   Troque o nome em configs/modelos.json (ver LEIA-ME, 'Quando quebrar').")
+            return False
+        except openai.APIConnectionError:
+            print("⛔ Sem conexão com a OpenAI. Confira a internet e rode de novo. "
+                  "Nada foi gasto.")
+            return False
+        except openai.APIStatusError as e:
+            if sem_credito(e):
+                print("⛔ A conta da OpenAI ficou SEM CRÉDITO. Nada foi gasto.\n"
+                      "   Peça a quem administra a organização elementum3 para pôr "
+                      "crédito, e rode de novo.")
+            else:
+                print(f"⛔ A OpenAI respondeu com erro {e.status_code} ao conferir os "
+                      f"modelos — instabilidade do lado dela. Nada foi gasto.\n"
+                      f"   Espere alguns minutos e rode de novo.")
+            return False
+        except openai.OpenAIError as e:
+            print(f"⛔ Erro inesperado ao conferir a chave com a OpenAI "
+                  f"({descrever_erro(e)}). Nada foi gasto.")
+            return False
+    return True
+
+
 def drop_already_published(items):
     """
     Remove what the previous edition already carried, by URL.
@@ -192,6 +330,13 @@ def drop_already_published(items):
     """
     nome, publicadas = edicao_anterior()
     if not publicadas:
+        # Silent here was a defect: on a new machine, or with output/archive
+        # missing, last week's stories came back with nothing saying the filter
+        # had not run.
+        print("⚠️  Nenhuma edição anterior em output/archive/: as notícias repetidas da "
+              "semana passada NÃO foram retiradas.\n"
+              "     Confira contra o último PDF enviado, ou copie a pasta da última "
+              "edição para output/archive/ antes de rodar.")
         return items
 
     kept, repetidas = [], []
@@ -240,19 +385,109 @@ def main():
     # edition report comes out wrong — measured, on 22 set 2026.
     if not trava.adquirir():
         return
+    registro = _abrir_registro()
+    # The error is written while the log is still open. Letting it propagate
+    # printed the traceback after the log was closed, so the file that gets sent
+    # to whoever fixes the problem ended one line before the problem.
+    codigo = 0
     try:
         _executar(args)
+    except KeyboardInterrupt:
+        print("\n⛔ Execução interrompida (Ctrl+C). As etapas que terminaram ficam no "
+              "cache; a edição NÃO foi montada.")
+        codigo = 130
+    except SemCredito as e:
+        print(e)
+        codigo = 1
+    except Exception:
+        traceback.print_exc()
+        print("⛔ A execução PAROU com o erro acima. Mande este registro a quem for "
+              "consertar (ver LEIA-ME, 'Quando quebrar').")
+        codigo = 1
     finally:
         trava.liberar()
+        _fechar_registro(registro)
+    if codigo:
+        sys.exit(codigo)
+
+
+class _Duplicador:
+    """Writes to the terminal and to a file at the same time."""
+
+    def __init__(self, terminal, arquivo):
+        self.terminal, self.arquivo = terminal, arquivo
+
+    def write(self, texto):
+        self.terminal.write(texto)
+        try:
+            self.arquivo.write(texto)
+        except ValueError:          # file already closed at interpreter exit
+            pass
+        return len(texto)
+
+    def flush(self):
+        self.terminal.flush()
+        try:
+            self.arquivo.flush()
+        except ValueError:
+            pass
+
+    def __getattr__(self, nome):
+        return getattr(self.terminal, nome)
+
+
+def _abrir_registro():
+    """
+    Save everything the run prints to output/logs/, as well as showing it.
+
+    The review depends on what the run printed — the 🚨 block, the pages that
+    could not be fetched, the stories dropped as repeats — and all of it lived
+    only in a terminal window. Close the window, or run it in Cursor and review
+    from another machine, and the warnings were gone. Now each run leaves a file.
+    """
+    pasta = PROJECT_ROOT / "output" / "logs"
+    try:
+        os.makedirs(pasta, exist_ok=True)
+        caminho = pasta / f"execucao-{datetime.now().strftime('%Y-%m-%d-%H%M%S')}.log"
+        # Line by line, not in 8 KB blocks: closing the terminal tab or killing a
+        # stuck run skips every cleanup, and the last warnings were lost with it.
+        arquivo = open(caminho, "w", encoding="utf-8", buffering=1)
+    except OSError as e:
+        print(f"⚠️  Não consegui abrir o registro da execução ({e}); segue sem ele.")
+        return None
+    originais = (sys.stdout, sys.stderr)
+    sys.stdout = _Duplicador(originais[0], arquivo)
+    sys.stderr = _Duplicador(originais[1], arquivo)
+    return caminho, arquivo, originais
+
+
+def _fechar_registro(registro):
+    if not registro:
+        return
+    caminho, arquivo, originais = registro
+    sys.stdout, sys.stderr = originais
+    arquivo.close()
+    print(f"📝 Tudo o que apareceu acima está salvo em "
+          f"{caminho.relative_to(PROJECT_ROOT)} — é o que a revisão usa.")
 
 
 def _executar(args):
-    # Load environment variables
     load_dotenv()
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
     start = args.from_stage or STAGES[0]
     start_idx = STAGES.index(start)
+
+    # Every stage up to dedup calls the OpenAI API. Find out now, for free,
+    # whether the key and the models answer — not after the search and the scrape.
+    if start_idx <= STAGES.index("dedup") and not verificar_modelos():
+        return
+
+    janela, porque = janela_desta_edicao()
+    inicio = (datetime.now() - timedelta(days=janela)).strftime("%d/%m")
+    if porque.startswith("⚠️"):
+        print(f"📅 Janela desta edição: de {inicio} até hoje ({janela} dias).\n{porque}.")
+    else:
+        print(f"📅 Janela desta edição: de {inicio} até hoje ({janela} dias) — {porque}.")
 
     def runs(stage: str) -> bool:
         """True when this stage should actually execute rather than come from cache."""
@@ -281,7 +516,10 @@ def _executar(args):
         buscas_vazias = []
         for cfg in configs:
             query = cfg.get("query")
-            days = cfg.get("days", 7)
+            # One window for the whole edition: the search, the date filter and
+            # the PDF header all use it. janela is already at least every
+            # query's own "days".
+            days = janela
             country = cfg.get("country", "br")
             print(f"[{datetime.now()}] Searching for '{query}' (last {days} days, country={country})...")
             encontrados, problemas = get_search_results(query, days=days, country=country)
@@ -367,7 +605,7 @@ def _executar(args):
             scrape_articles(resgate)
         items = descartar_reservas(items)
         print(f"Scraped bodies for {len(items)} items")
-        items = drop_failed_and_stale(items)
+        items = drop_failed_and_stale(items, days=janela)
         items = drop_already_published(items)
         if not items:
             print("No usable articles after scraping. Exiting.")
@@ -419,11 +657,15 @@ def _executar(args):
     print(f"Wrote clippings JSON to {output_file}")
 
     # 10b) Freeze the raw output, before anyone edits clippings.json by hand
-    archive_raw(items)
+    archive_raw(items, janela_dias=janela)
 
     # 11) Apply configs/overrides.json and generate the PDF
     pdf_path = build_pdf()
-    print(f"Generated PDF clipping at {pdf_path}")
+    if not pdf_path:
+        # build_pdf has already said why. The edition itself is saved; fixing
+        # the cause and running command 2 builds it without paying again.
+        print("⛔ A edição foi salva, mas o PDF NÃO foi montado (motivo acima). Depois de "
+              "corrigir: python services/pdf_builder.py")
 
 
 def _preservar_anterior(output_file, items) -> None:

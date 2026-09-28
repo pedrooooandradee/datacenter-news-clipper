@@ -1,0 +1,94 @@
+# Versões EXATAS que rodaram de verdade. Instale por aqui:
+#
+#   pip install -r requirements.lock.txt
+#
+# Gerado em 28 set 2026 num ambiente criado do zero com a receita do README
+# (conda para chip Apple + venv), onde passaram os testes, o PDF, a checagem da
+# OpenAI e a coleta real de 8 páginas, idêntica à do ambiente que produziu as
+# edições. As versões de cada biblioteca são as mesmas desse ambiente.
+#
+# O requirements.txt diz só o MÍNIMO de cada biblioteca; instalar por ele puxa o
+# que houver de mais novo no dia — combinações que ninguém testou. Atualize este
+# arquivo só de propósito: instale de novo pelo requirements.txt, rode uma
+# edição completa, confira, e então gere de novo com `pip freeze`.
+#
+# Python 3.12, Mac com chip Apple (arm64).
+
+annotated-types==0.8.0
+anyio==4.15.1
+attrs==26.1.0
+babel==2.18.0
+brotli==1.2.0
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+courlan==1.4.0
+cssselect2==0.10.1
+dateparser==1.4.3
+distro==1.9.0
+feedparser==6.0.14
+feedparser-sgmllib==2.1.0
+fonttools==4.65.0
+h11==0.16.0
+htmldate==1.10.0
+httpcore==1.0.9
+httpcore2==2.13.0
+httpx==0.28.1
+httpx2==2.13.0
+idna==3.20
+Jinja2==3.1.6
+jiter==0.17.0
+jsonpatch==1.33
+jsonpointer==3.1.1
+jusText==3.0.2
+langchain-core==1.6.4
+langchain-openai==1.6.3
+langchain-protocol==0.0.19
+langsmith==0.14.0
+lxml==6.1.3
+lxml_html_clean==0.4.5
+MarkupSafe==3.0.3
+openai==3.17.0
+orjson==3.12.0
+outcome==1.3.0.post0
+packaging==26.3
+pillow==12.3.0
+pycparser==3.0
+pydantic==2.13.5
+pydantic_core==2.46.5
+pydyf==0.12.1
+pyphen==0.18.1
+PySocks==1.7.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.3
+pytz==2026.3.post1
+PyYAML==6.0.3
+regex==2026.9.10
+requests==2.34.2
+requests-toolbelt==1.0.0
+selenium==4.49.0
+six==1.17.0
+sniffio==1.3.1
+sortedcontainers==2.4.0
+tenacity==9.1.4
+tiktoken==0.14.0
+tinycss2==1.5.1
+tinyhtml5==2.1.0
+tld==0.13.2
+trafilatura==2.2.0
+trio==0.34.0
+trio-websocket==0.12.2
+truststore==0.10.4
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+tzlocal==5.4.4
+urllib3==2.8.0
+uuid_utils==0.17.1
+weasyprint==70.0
+webencodings==0.6.1
+websocket-client==1.9.2
+websockets==16.1.1
+wsproto==1.3.2
+xxhash==4.0.1
+zopfli==0.4.3
+zstandard==0.25.0

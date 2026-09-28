@@ -390,12 +390,18 @@ class CorrecoesManuais(unittest.TestCase):
         _, relatorio = overrides.aplicar(self._items(), caminho)
         self.assertTrue(any("SEM motivo" in linha for linha in relatorio))
 
-    def test_arquivo_quebrado_nao_derruba_a_execucao(self):
+    def test_arquivo_quebrado_para_e_diz_a_linha(self):
+        """
+        It used to be skipped with a warning, and the PDF went out with none of
+        the week's corrections, "PDF gerado" at the end and the archive
+        overwritten. A missing comma now stops the build and names the line.
+        """
         caminho = os.path.join(tempfile.mkdtemp(), "overrides.json")
         with open(caminho, "w", encoding="utf-8") as f:
-            f.write("{ isto não é json,")
-        final, relatorio = overrides.aplicar(self._items(), caminho)
-        self.assertEqual(len(final), 2)
+            f.write('{\n  "removidas": [\n    {"url": "https://ex.com/a"}\n    {"url": "b"}\n  ]\n}')
+        with self.assertRaises(overrides.OverridesIlegivel) as erro:
+            overrides.aplicar(self._items(), caminho)
+        self.assertIn("linha 4", str(erro.exception))
 
 
 class MontagemDoPDF(unittest.TestCase):
@@ -415,6 +421,31 @@ class MontagemDoPDF(unittest.TestCase):
             json.dump(items, f)
         saida = self.pdf_builder.load_clippings(caminho)
         self.assertEqual(saida[0]["category"], "outros")
+
+    def test_overrides_quebrado_nao_gera_nem_arquiva_pdf(self):
+        """No PDF is better than a PDF without the week's corrections."""
+        import io, json, contextlib
+        pasta = tempfile.mkdtemp()
+        entrada = os.path.join(pasta, "clippings.json")
+        pdf = os.path.join(pasta, "clipping.pdf")
+        with open(entrada, "w", encoding="utf-8") as f:
+            json.dump([{"url": "u1", "title": "T", "source": "Valor Econômico",
+                        "category": "outros", "summary": "s"}], f)
+
+        def quebrado(_caminho):
+            raise overrides.OverridesIlegivel("overrides.json tem um erro de sintaxe na linha 4")
+
+        original = overrides.carregar
+        overrides.carregar = quebrado
+        saida = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(saida):
+                resultado = self.pdf_builder.build_pdf(entrada, pdf)
+        finally:
+            overrides.carregar = original
+        self.assertEqual(resultado, "")
+        self.assertFalse(os.path.exists(pdf))
+        self.assertIn("NÃO foi gerado", saida.getvalue())
 
     def test_tier_4_nao_volta_num_json_antigo(self):
         import json
@@ -491,10 +522,11 @@ class JanelaDoFeed(unittest.TestCase):
         from email.utils import format_datetime
         from datetime import time
 
-        abertura = (datetime.now(timezone.utc) - timedelta(days=7)).date()
-        # Right after midnight on the opening day: inside the window by civil
-        # day, and older than 7 * 24 hours at any hour this is run.
-        na_abertura = datetime.combine(abertura, time(0, 0), tzinfo=timezone.utc)
+        abertura = (datetime.now() - timedelta(days=7)).date()
+        # Right after midnight on the opening day, on this computer's calendar:
+        # inside the window by civil day, and older than 7 * 24 hours at any hour
+        # this is run.
+        na_abertura = datetime.combine(abertura, time(0, 5)).astimezone()
 
         entradas = [
             self._Entrada("Noticia 0", "Valor Econômico",
@@ -508,6 +540,53 @@ class JanelaDoFeed(unittest.TestCase):
             self._Feed(entradas), 7)
         self.assertEqual(len(resultados), 3)
         self.assertEqual(descartados, [])
+
+    def test_rodar_a_noite_nao_perde_o_primeiro_dia(self):
+        """
+        The window used to be counted in UTC here and in local time in the PDF
+        header. At 23:30 in Brasília it is already tomorrow in UTC, so the first
+        day the header promised was cut from the search.
+        """
+        import time as relogio
+        from email.utils import format_datetime
+        from services.utils import get_search_results as busca
+
+        fuso_antes = os.environ.get("TZ")
+        os.environ["TZ"] = "America/Sao_Paulo"
+        relogio.tzset()
+
+        class Relogio(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                agora = datetime(2026, 10, 5, 23, 30).astimezone()
+                return agora.replace(tzinfo=None) if tz is None else agora.astimezone(tz)
+
+        original = busca.datetime
+        busca.datetime = Relogio
+        try:
+            # 28/09 at 15:00 in Brasília: the first day of a 7-day window on 05/10.
+            publicada = datetime(2026, 9, 28, 15, 0).astimezone()
+            feed = self._Feed([self._Entrada("Ascenty", "Valor Econômico",
+                                             format_datetime(publicada))])
+            resultados, descartados, _ = collect_search_results_from_rss(feed, 7)
+        finally:
+            busca.datetime = original
+            if fuso_antes is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = fuso_antes
+            relogio.tzset()
+        self.assertEqual(len(resultados), 1)
+        self.assertEqual(descartados, [])
+
+    def test_data_so_com_o_dia_nao_volta_um_dia(self):
+        """A page that says only "2026-09-28" was shown as 27 Set in Brasília."""
+        from services.scraper import _parse_date
+        from services.utils.datetime_utils import format_datetime_br
+        for texto in ("2026-09-28", "2026-09-28T00:00:00"):
+            self.assertEqual(format_datetime_br(_parse_date(texto)), "28 Set", texto)
+        # A real instant keeps its own time.
+        self.assertEqual(_parse_date("2026-09-28T10:00:00-03:00").hour, 10)
 
     def test_materia_realmente_velha_e_descartada_E_CONTADA(self):
         resultados, descartados, _ = collect_search_results_from_rss(
@@ -728,6 +807,286 @@ class EdicaoDe28DeSetembro(unittest.TestCase):
     def test_url_igual_ate_a_barra_e_o_fragmento(self):
         self.assertEqual(archive.url_chave("https://ex.com/a/#topo"),
                          archive.url_chave("https://ex.com/a"))
+
+
+class PassagemDeBastao(unittest.TestCase):
+    """
+    What has to keep working when nobody who wrote this is around: the window of
+    an edition, the checks that stop a run before it spends money, and the
+    warnings that used to be silent.
+    """
+
+    def _arquivo_com(self, *edicoes):
+        import json
+        pasta = tempfile.mkdtemp()
+        for nome in edicoes:
+            os.makedirs(os.path.join(pasta, nome))
+            with open(os.path.join(pasta, nome, archive.FINAL_NAME), "w") as f:
+                json.dump([{"url": f"https://ex.com/{nome}"}], f)
+        return pasta
+
+    def _com_arquivo(self, pasta, funcao):
+        original = archive.ARCHIVE_DIR
+        archive.ARCHIVE_DIR = pasta
+        try:
+            return funcao()
+        finally:
+            archive.ARCHIVE_DIR = original
+
+    # ── The window ───────────────────────────────────────────────────
+    def _janela(self, pasta, agora):
+        import main
+        return self._com_arquivo(pasta, lambda: main.janela_desta_edicao(agora))
+
+    def test_janela_semana_normal_e_sete_dias(self):
+        dias, porque = self._janela(self._arquivo_com("2026-09-28"), datetime(2026, 10, 5, 9))
+        self.assertEqual(dias, 7)
+        self.assertNotIn("⚠️", porque)
+
+    def test_atraso_de_ate_tres_dias_e_coberto(self):
+        """Run two or three days late: the days in between are not lost."""
+        pasta = self._arquivo_com("2026-09-28")
+        self.assertEqual(self._janela(pasta, datetime(2026, 10, 7, 9))[0], 9)
+        self.assertEqual(self._janela(pasta, datetime(2026, 10, 8, 9))[0], 10)
+
+    def test_arquivo_parado_nao_estica_a_janela(self):
+        """
+        The review of 28 set 2026: a computer whose output/archive/ stopped at
+        14/09, while 21/09 and 28/09 went out from another one. Stretching to 21
+        days brought both editions back under a three-week header. The window
+        stays at 7 and the run says, loudly, what it cannot know.
+        """
+        dias, porque = self._janela(self._arquivo_com("2026-09-14"), datetime(2026, 10, 5, 9))
+        self.assertEqual(dias, 7)
+        self.assertIn("⚠️", porque)
+        self.assertIn("outro computador", porque)
+
+    def test_semana_pulada_nao_promete_o_que_nao_cobre(self):
+        dias, porque = self._janela(self._arquivo_com("2026-09-28"), datetime(2026, 10, 12, 9))
+        self.assertEqual(dias, 7)
+        self.assertIn("NÃO entra", porque)
+
+    def test_sem_arquivo_usa_o_padrao(self):
+        dias, porque = self._janela(tempfile.mkdtemp(), datetime(2026, 10, 5, 9))
+        self.assertEqual(dias, 7)
+        self.assertIn("não há edição anterior", porque)
+
+    def test_cabecalho_do_pdf_mostra_o_inicio_da_janela(self):
+        from datetime import date
+        from services import pdf_builder
+        env = pdf_builder.init_jinja2_environment(pdf_builder.CONFIGS_DIR)
+        html = pdf_builder.render_html(env, "clipping_template.html", [],
+                                       today=datetime(2026, 10, 12, 10),
+                                       inicio_janela=date(2026, 9, 28))
+        self.assertIn("Week 28 Sep 2026", html)
+
+    def test_janela_fica_registrada_para_a_remontagem_do_pdf(self):
+        from datetime import date
+        original = archive.EDICAO_PATH
+        archive.EDICAO_PATH = os.path.join(tempfile.mkdtemp(), "edicao_atual.json")
+        try:
+            archive.registrar_edicao(datetime(2026, 10, 12, 10), janela_dias=14)
+            self.assertEqual(archive.inicio_da_janela(), date(2026, 9, 28))
+        finally:
+            archive.EDICAO_PATH = original
+
+    # ── Warnings that used to be silent ──────────────────────────────
+    def test_sem_edicao_anterior_o_filtro_de_repetidas_avisa(self):
+        import io, contextlib, main
+        pasta = tempfile.mkdtemp()
+        saida = io.StringIO()
+        itens = [{"url": "https://ex.com/a", "title": "A", "source": "X"}]
+        with contextlib.redirect_stdout(saida):
+            resultado = self._com_arquivo(pasta, lambda: main.drop_already_published(itens))
+        self.assertEqual(resultado, itens)
+        self.assertIn("NÃO foram retiradas", saida.getvalue())
+
+    def test_correcao_desta_semana_que_nao_bateu_aparece_as_antigas_so_contam(self):
+        import json
+        caminho = os.path.join(tempfile.mkdtemp(), "overrides.json")
+        with open(caminho, "w", encoding="utf-8") as f:
+            json.dump({"removidas": [
+                {"url": "https://ex.com/digitada-errado", "motivo": "x", "data": "2026-10-05"},
+                {"url": "https://ex.com/da-semana-passada", "motivo": "x", "data": "2026-09-28"},
+            ]}, f)
+        original = overrides.data_da_edicao
+        overrides.data_da_edicao = lambda: datetime(2026, 10, 5, 10)
+        try:
+            _, relatorio = overrides.aplicar([{"url": "https://ex.com/outra"}], caminho)
+        finally:
+            overrides.data_da_edicao = original
+        texto = "\n".join(relatorio)
+        self.assertIn("digitada-errado", texto)
+        self.assertNotIn("da-semana-passada", texto)
+        self.assertIn("1 correções de edições anteriores", texto)
+
+    def _nao_casou(self, entradas, fechamento):
+        import json
+        caminho = os.path.join(tempfile.mkdtemp(), "overrides.json")
+        with open(caminho, "w", encoding="utf-8") as f:
+            json.dump({"removidas": entradas}, f)
+        original = overrides.data_da_edicao
+        overrides.data_da_edicao = lambda: fechamento
+        try:
+            _, relatorio = overrides.aplicar([{"url": "https://ex.com/outra"}], caminho)
+        finally:
+            overrides.data_da_edicao = original
+        return "\n".join(relatorio)
+
+    def test_data_brasileira_da_semana_nao_some(self):
+        """Compared as text, "05/10/2026" sorted before "2026-10-05" and was hidden."""
+        texto = self._nao_casou([
+            {"url": "https://ex.com/digitada-errado", "motivo": "x", "data": "05/10/2026"},
+            {"url": "https://ex.com/antiga", "motivo": "x", "data": "28/09/2026"},
+        ], datetime(2026, 10, 5, 10))
+        self.assertIn("digitada-errado", texto)
+        self.assertNotIn("ex.com/antiga", texto)
+
+    def test_pdf_refeito_no_dia_seguinte_ainda_mostra_a_da_semana(self):
+        """--from rewrites the closing date; Monday's correction is still this week's."""
+        texto = self._nao_casou([
+            {"url": "https://ex.com/digitada-errado", "motivo": "x", "data": "2026-10-05"},
+        ], datetime(2026, 10, 6, 11))
+        self.assertIn("digitada-errado", texto)
+
+    def test_data_ilegivel_e_mostrada(self):
+        texto = self._nao_casou([
+            {"url": "https://ex.com/x", "motivo": "x", "data": "5 de outubro"},
+        ], datetime(2026, 10, 5, 10))
+        self.assertIn("data ilegível", texto)
+
+    # ── Stopping before money is spent ───────────────────────────────
+    def _cliente(self, erro=None):
+        class Modelos:
+            def retrieve(self, nome):
+                if erro:
+                    raise erro
+        class Cliente:
+            models = Modelos()
+        return Cliente()
+
+    def _erro(self, classe, status):
+        import httpx
+        resposta = httpx.Response(status, request=httpx.Request("GET", "https://api.openai.com"))
+        return classe("erro de teste", response=resposta, body=None)
+
+    def test_modelo_aposentado_para_antes_de_gastar(self):
+        import io, contextlib, openai, main
+        saida = io.StringIO()
+        with contextlib.redirect_stdout(saida):
+            ok = main.verificar_modelos(self._cliente(self._erro(openai.NotFoundError, 404)))
+        self.assertFalse(ok)
+        self.assertIn("configs/modelos.json", saida.getvalue())
+
+    def test_chave_recusada_para_antes_de_gastar(self):
+        import io, contextlib, openai, main
+        saida = io.StringIO()
+        with contextlib.redirect_stdout(saida):
+            ok = main.verificar_modelos(self._cliente(self._erro(openai.AuthenticationError, 401)))
+        self.assertFalse(ok)
+        self.assertIn("recusou a chave", saida.getvalue())
+
+    def test_tudo_certo_segue(self):
+        import main
+        self.assertTrue(main.verificar_modelos(self._cliente()))
+
+    def _verificar(self, erro_por_modelo):
+        import io, contextlib, main
+        class Modelos:
+            def retrieve(self, nome):
+                if nome in erro_por_modelo:
+                    raise erro_por_modelo[nome]
+        class Cliente:
+            models = Modelos()
+        saida = io.StringIO()
+        with contextlib.redirect_stdout(saida):
+            ok = main.verificar_modelos(Cliente())
+        return ok, saida.getvalue()
+
+    def _erro_json(self, classe, status, corpo):
+        import httpx
+        resposta = httpx.Response(status, json=corpo,
+                                  request=httpx.Request("GET", "https://api.openai.com"))
+        return classe("erro de teste", response=resposta, body=corpo.get("error"))
+
+    def test_sem_permissao_nao_manda_trocar_o_modelo(self):
+        """A 403 is a permission to ask for, not a model to replace."""
+        import openai
+        from services.utils.projeto import modelo
+        ok, texto = self._verificar({modelo("dedup"): self._erro(openai.PermissionDeniedError, 403)})
+        self.assertFalse(ok)
+        self.assertIn("permissão", texto)
+        self.assertIn("NÃO troque", texto)
+
+    def test_embedding_aposentado_ou_sem_permissao_so_avisa(self):
+        """The pipeline already runs without it; it must not stop the edition."""
+        import openai
+        from services.utils.projeto import modelo
+        for classe, status in ((openai.NotFoundError, 404), (openai.PermissionDeniedError, 403)):
+            ok, texto = self._verificar({modelo("embedding"): self._erro(classe, status)})
+            self.assertTrue(ok, classe.__name__)
+            self.assertIn("⚠️", texto)
+
+    def test_openai_instavel_para_sem_traceback(self):
+        import openai
+        from services.utils.projeto import modelo
+        ok, texto = self._verificar({modelo("dedup"): self._erro(openai.InternalServerError, 503)})
+        self.assertFalse(ok)
+        self.assertIn("503", texto)
+
+    def test_conta_sem_credito_para_na_primeira_chamada_paga(self):
+        import openai
+        from services.utils.projeto import parar_se_sem_credito, SemCredito
+        erro = self._erro_json(openai.RateLimitError, 429, {"error": {
+            "message": "You exceeded your current quota", "type": "insufficient_quota",
+            "code": "insufficient_quota"}})
+        with self.assertRaises(SemCredito) as parada:
+            parar_se_sem_credito(erro, retomar_de="classify")
+        self.assertIn("--from=classify", str(parada.exception))
+        # An ordinary rate limit is not a lack of credit.
+        comum = self._erro_json(openai.RateLimitError, 429, {"error": {
+            "message": "Rate limit reached", "type": "requests", "code": "rate_limit_exceeded"}})
+        parar_se_sem_credito(comum, retomar_de="classify")
+
+    # ── The run log ──────────────────────────────────────────────────
+    def test_registro_escreve_no_terminal_e_no_arquivo(self):
+        import io, main
+        terminal, arquivo = io.StringIO(), io.StringIO()
+        duplo = main._Duplicador(terminal, arquivo)
+        duplo.write("🚨 aviso\n")
+        self.assertEqual(terminal.getvalue(), arquivo.getvalue())
+
+    def test_erro_que_para_a_execucao_fica_no_registro(self):
+        """
+        The traceback used to be printed after the log was closed, so the file
+        sent to whoever fixes the problem ended one line before the problem.
+        """
+        import io, contextlib, glob, main
+        from pathlib import Path
+
+        def quebra(_args):
+            print("linha antes da falha")
+            raise RuntimeError("erro no meio da execução")
+
+        pasta = Path(tempfile.mkdtemp())
+        salvos = (main.PROJECT_ROOT, main._executar, trava.adquirir, trava.liberar, sys.argv)
+        main.PROJECT_ROOT, main._executar = pasta, quebra
+        trava.adquirir, trava.liberar = (lambda: True), (lambda: None)
+        sys.argv = ["main.py"]
+        try:
+            with contextlib.redirect_stderr(io.StringIO()), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit) as saida:
+                    main.main()
+        finally:
+            (main.PROJECT_ROOT, main._executar, trava.adquirir, trava.liberar,
+             sys.argv) = salvos
+        self.assertEqual(saida.exception.code, 1)
+        [registro] = glob.glob(str(pasta / "output" / "logs" / "*.log"))
+        conteudo = open(registro, encoding="utf-8").read()
+        self.assertIn("linha antes da falha", conteudo)
+        self.assertIn("RuntimeError: erro no meio da execução", conteudo)
+        self.assertIn("PAROU", conteudo)
 
 
 if __name__ == "__main__":

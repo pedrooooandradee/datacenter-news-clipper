@@ -26,7 +26,15 @@
     "  dedup      — funde duplicatas que o programa não pegou. A que fica é",
     "               'manter'; as de 'fundir' somem e viram 'também noticiado por'.",
     "  empresa    — aprova a ficha de uma empresa que está em quarentena. Só sai no",
-    "               PDF depois que alguém escreve aqui, com 'aprovado_por'."
+    "               PDF depois que alguém escreve aqui, com 'aprovado_por'.",
+    "",
+    "Ponha 'data' (o dia da edição, AAAA-MM-DD) em toda correção, menos no",
+    "highlight, que é só uma lista de URLs. É pela data que o programa separa a",
+    "correção DESTA semana com URL errada, que ele mostra em voz alta, das de",
+    "semanas anteriores, que ele só conta.",
+    "",
+    "Uma vírgula a mais ou a menos quebra o arquivo inteiro: o PDF para e diz a",
+    "linha. Os modelos de cada bloco estão em '_exemplos', no fim."
   ],
   "versao": 1,
   "removidas": [
@@ -118,14 +126,16 @@
         "url": "https://exemplo.com/materia",
         "de": "clientes",
         "para": "inovação",
-        "motivo": "produto de software da AWS, não expansão de infraestrutura"
+        "motivo": "produto de software da AWS, não expansão de infraestrutura",
+        "data": "2026-09-21"
       }
     ],
     "resumo": [
       {
         "url": "https://exemplo.com/materia",
         "texto": "Resumo corrigido.",
-        "motivo": "o modelo tratou o ReData, que é regime tributário, como empresa"
+        "motivo": "o modelo tratou o ReData, que é regime tributário, como empresa",
+        "data": "2026-09-21"
       }
     ],
     "highlight": [
@@ -134,7 +144,8 @@
     "fonte_nome": [
       {
         "url": "https://exemplo.com/materia",
-        "para": "Investing.com"
+        "para": "Investing.com",
+        "data": "2026-09-21"
       }
     ],
     "dedup": [
@@ -143,7 +154,8 @@
         "fundir": [
           "https://exemplo.com/b"
         ],
-        "motivo": "mesma sanção, enfoques diferentes"
+        "motivo": "mesma sanção, enfoques diferentes",
+        "data": "2026-09-21"
       }
     ],
     "empresa": [

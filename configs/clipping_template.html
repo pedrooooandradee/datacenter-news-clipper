@@ -264,7 +264,7 @@
 
   <div class="running-header-text">
     <div class="title">Data Center News</div>
-    <div class="line1">Week {{ (today - timedelta(days=7)).strftime('%d %b %Y') }} – {{ today.strftime('%d %b %Y') }}</div>
+    <div class="line1">Week {{ (inicio_janela or (today - timedelta(days=7))).strftime('%d %b %Y') }} – {{ today.strftime('%d %b %Y') }}</div>
     <div class="line2">Fechamento {{ today.strftime('%d %b') }} – {{ today.strftime('%H:%M') }}</div>
   </div>
   <!-- ────────────────────────────────────────────────────────────── -->

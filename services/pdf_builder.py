@@ -7,14 +7,13 @@ from typing import Dict, List, Optional
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Set PKG_CONFIG_PATH from .env before importing weasyprint
-pkg_config_path = os.getenv('PKG_CONFIG_PATH')
-if pkg_config_path:
-    os.environ['PKG_CONFIG_PATH'] = pkg_config_path
-
+# There used to be a PKG_CONFIG_PATH hook here, and three documents told
+# Apple-Silicon users to set it in .env. It never did anything: WeasyPrint loads
+# pango and cairo at run time through cffi's dlopen, which does not read
+# PKG_CONFIG_PATH (that variable is for compiling). Removed 28 set 2026, with the
+# advice; the supported install is the conda one in README.md, Step 3.
 from weasyprint import HTML
 
 # Running this file directly is the documented way to rebuild only the PDF, so the
@@ -24,7 +23,7 @@ _PROJECT_ROOT = os.path.dirname(_SERVICES_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from services.utils.archive import archive_final, data_da_edicao
+from services.utils.archive import archive_final, data_da_edicao, inicio_da_janela
 from services.utils.datetime_utils import format_datetime_br
 from services.utils.fontes import tier_of
 from services import empresas, overrides
@@ -123,6 +122,19 @@ def load_clippings(json_filepath: str) -> List[Dict]:
               f"'{item.get('title', '')[:50]}' foi para {CATEGORIA_PADRAO}.")
         item["category"] = CATEGORIA_PADRAO
 
+    # The 🚨 block used to be printed once, in the middle of a full run, and never
+    # again. Whoever only rebuilt the PDF after correcting it never saw it. It is
+    # repeated on every build, minus the summaries already rewritten by hand.
+    suspeitos = [item for item in data
+                 if item.get("numeros_nao_conferidos") and not item.get("override_resumo")]
+    if suspeitos:
+        print(f"🚨 {len(suspeitos)} resumos citam número que não achei na matéria — "
+              f"confira cada um antes de enviar:")
+        for item in suspeitos:
+            print(f"     - {item.get('source', '?')} — {item.get('title', '')[:50]}\n"
+                  f"       não achei: {', '.join(item['numeros_nao_conferidos'])}\n"
+                  f"       {item.get('url', '')}")
+
     data.sort(key=_chave_de_ordem)
 
     # Anchor ids follow reading order, so the index links land where they should.
@@ -170,12 +182,18 @@ def init_jinja2_environment(configs_dir: str) -> Environment:
 # ─────────────────────────────────────────────────────────────────────
 
 def render_html(env: Environment, template_name: str, items: List[Dict],
-                today: Optional[datetime] = None) -> str:
-    """Render the template. `today` exists so a rebuild can be dated on purpose."""
+                today: Optional[datetime] = None, inicio_janela=None) -> str:
+    """
+    Render the template. `today` exists so a rebuild can be dated on purpose.
+
+    `inicio_janela` is the first day the edition covers. When it is not known —
+    editions closed before 28 set 2026 — the header falls back to seven days.
+    """
     template = env.get_template(template_name)
     return template.render(
         items=items,
         today=today or datetime.now(),
+        inicio_janela=inicio_janela,
         ordered_categories=ORDEM_CATEGORIAS,
         timedelta=timedelta,
     )
@@ -212,8 +230,25 @@ def generate_pdf_from_html(html_string: str, output_path: str) -> None:
 # ─────────────────────────────────────────────────────────────────────
 
 def build_pdf(json_path: str = JSON_PATH, output_pdf: str = OUTPUT_PDF) -> str:
-    """Build the PDF from output/clippings.json and archive what was built."""
-    clippings = load_clippings(json_path)
+    """
+    Build the PDF from output/clippings.json and archive what was built.
+
+    Returns the PDF's path, or "" when nothing was built — no edition yet, or an
+    overrides.json that cannot be read. Nothing is archived in either case.
+    """
+    if not os.path.exists(json_path):
+        # A fresh clone has no edition yet, and this used to end in a raw
+        # FileNotFoundError traceback — the first thing a new person saw.
+        print(f"⛔ Ainda não existe nenhuma edição em {os.path.relpath(json_path, PROJECT_ROOT)}.\n"
+              f"   Este comando só REFAZ o PDF de uma edição que já rodou. Para gerar a "
+              f"primeira: python main.py")
+        return ""
+    try:
+        clippings = load_clippings(json_path)
+    except overrides.OverridesIlegivel as e:
+        print(f"⛔ O PDF NÃO foi gerado: configs/{e}\n"
+              f"   Corrija o arquivo e rode de novo: python services/pdf_builder.py")
+        return ""
 
     env = init_jinja2_environment(CONFIGS_DIR)
 
@@ -223,7 +258,8 @@ def build_pdf(json_path: str = JSON_PATH, output_pdf: str = OUTPUT_PDF) -> str:
     if fechamento is None:
         print("⚠️  Não sei quando esta edição foi fechada (output/edicao_atual.json "
               "não existe); o cabeçalho vai sair com a data de hoje.")
-    html_str = render_html(env, "clipping_template.html", clippings, today=fechamento)
+    html_str = render_html(env, "clipping_template.html", clippings, today=fechamento,
+                           inicio_janela=inicio_da_janela())
     generate_pdf_from_html(html_str, output_pdf)
 
     com_metricas = sum(1 for item in clippings if (item.get("ficha") or {}).get("ratios"))
@@ -240,4 +276,6 @@ def build_pdf(json_path: str = JSON_PATH, output_pdf: str = OUTPUT_PDF) -> str:
 
 
 if __name__ == "__main__":
-    build_pdf()
+    # A non-zero exit when nothing was built, so a script or a person checking
+    # "$?" does not take a refusal for a PDF.
+    sys.exit(0 if build_pdf() else 1)

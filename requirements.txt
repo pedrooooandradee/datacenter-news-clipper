@@ -1,3 +1,7 @@
+# PARA INSTALAR, USE O requirements.lock.txt — ele tem as versões exatas que
+# rodaram. Este arquivo diz só o mínimo de cada biblioteca, e serve para gerar
+# o lock de novo quando alguém decidir atualizar as versões de propósito.
+#
 # O que o pipeline importa de verdade. Conferido por grep em 23 set 2026:
 # toda linha daqui é importada por algum arquivo que roda.
 
@@ -5,7 +9,8 @@ jinja2>=3.1.0
 weasyprint>=60.0
 
 # O weasyprint depende de libpango e libcairo, que NÃO vêm do pip. Sem elas o
-# import quebra com "cannot load library 'libpango-1.0-0'". Ver LEIA-ME.md.
+# import quebra com "cannot load library 'libpango-1.0-0'". Ver README.md,
+# passo 3: elas vêm do ambiente conda.
 
 langchain-openai>=0.0.5
 langchain-core>=0.1.0
@@ -19,10 +24,10 @@ openai>=1.0.0
 feedparser>=6.0.0
 trafilatura>=2.2.0
 
-# selenium e webdriver-manager exigem o Google Chrome INSTALADO na máquina.
-# O pip não instala o Chrome. Ver LEIA-ME.md, "Antes de rodar pela primeira vez".
-selenium>=4.0.0
-webdriver-manager>=4.0.0
+# O selenium exige o Google Chrome INSTALADO na máquina — o pip não instala o
+# navegador. O driver que conversa com o Chrome é resolvido pelo próprio
+# Selenium (Selenium Manager, a partir da 4.6). Ver LEIA-ME.md.
+selenium>=4.6.0
 
 python-dotenv>=1.0.1
 
@@ -37,3 +42,9 @@ python-dotenv>=1.0.1
 #
 # python-dateutil — zero ocorrências de "dateutil" no projeto inteiro. As datas
 #   são tratadas por datetime.fromisoformat e email.utils.parsedate_to_datetime.
+#
+# Saiu em 28 set 2026:
+#
+# webdriver-manager — baixava o driver do Chrome, trabalho que o Selenium faz
+#   sozinho desde a versão 4.6. Uma coleta de 8 páginas deu o mesmo resultado,
+#   caractere por caractere, com e sem ele.

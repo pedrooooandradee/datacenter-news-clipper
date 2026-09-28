@@ -28,6 +28,11 @@ from datetime import datetime, timedelta, timezone
 import urllib.parse
 from email.utils import parsedate_to_datetime
 
+try:
+    from services.utils.datetime_utils import dia_local
+except ImportError:          # run directly, from services/utils
+    from datetime_utils import dia_local
+
 # Display names for outlets that Google News reports as a bare domain.
 _CONFIGS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -96,7 +101,10 @@ def collect_search_results_from_rss(feed, days):
         (results, descartados, sem_data)
     """
     results, descartados, sem_data = [], [], []
-    window_start = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    # Counted on this computer's calendar, like the rest of the edition. In UTC,
+    # a run after 21h in Brasília started the window a day later than the PDF
+    # header said, and that day's news was lost here, before any report.
+    window_start = (datetime.now() - timedelta(days=days)).date()
 
     for entry in feed.entries:
         title, source = split_title_and_source(entry)
@@ -115,14 +123,14 @@ def collect_search_results_from_rss(feed, days):
 
         if pub_dt is None:
             sem_data.append(rotulo)
-        elif pub_dt.date() < window_start:
+        elif dia_local(pub_dt) < window_start:
             # Google News answers with up to a hundred results per query whatever
             # their age, so most queries discard seventy to a hundred entries that
             # are plainly old. Counting them all and listing only the ones NEAR
             # the edge is the difference between a report that is read and
             # seventy-five lines of expected behaviour that buries the signal.
-            dias_fora = (window_start - pub_dt.date()).days
-            descartados.append((dias_fora, f"{rotulo} [{pub_dt.date()}]"))
+            dias_fora = (window_start - dia_local(pub_dt)).days
+            descartados.append((dias_fora, f"{rotulo} [{dia_local(pub_dt)}]"))
             continue
 
         results.append({

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 def format_datetime_br(dt: datetime) -> str:
@@ -28,3 +28,18 @@ def format_datetime_br(dt: datetime) -> str:
     day = br_dt.day
     month_abbr = PT_MONTHS[br_dt.month]
     return f"{day:02d} {month_abbr}"
+
+
+def dia_local(dt: datetime) -> date:
+    """
+    The civil day of an instant on this computer's calendar.
+
+    The edition's window, its archive folder and its PDF header are all counted
+    on the computer's own calendar. Dates from the feed and from the pages carry
+    their own offsets (GMT, -03:00, +00:00), and taking .date() of each as it
+    came compared one calendar against another: a Google News entry stamped
+    01:00 GMT on the 29th is the evening of the 28th in Brasília.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone().date()
