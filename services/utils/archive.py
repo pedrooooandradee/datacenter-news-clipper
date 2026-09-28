@@ -23,8 +23,8 @@ every run.
 import os
 import json
 import shutil
-from typing import List, Dict, Optional
-from datetime import datetime
+from typing import List, Dict, Optional, Set, Tuple
+from datetime import datetime, timedelta
 
 # Paths resolved from this file, so archiving works whether the caller runs
 # main.py from the project root or services/pdf_builder.py directly.
@@ -64,6 +64,51 @@ def data_da_edicao() -> Optional[datetime]:
             return datetime.fromisoformat(json.load(f)["fechamento"])
     except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError, ValueError):
         return None
+
+
+# Two archive folders closer together than this are the same edition run twice,
+# not the previous one. Editions are weekly, so the real previous one sits six or
+# seven days back; a rerun the next morning must not treat its own first attempt
+# as something the reader already received.
+DIAS_ENTRE_EDICOES = 3
+
+
+def url_chave(url: str) -> str:
+    """The same article is the same URL up to a fragment or a trailing slash."""
+    return (url or "").split("#", 1)[0].rstrip("/")
+
+
+def edicao_anterior(antes_de: Optional[datetime] = None) -> Tuple[Optional[str], Set[str]]:
+    """
+    The last edition actually built into a PDF, and the URLs it carried.
+
+    Only folders holding clippings.final.json count: a raw snapshot with no final
+    means the PDF was never built, so nothing reached a reader. The final is what
+    was printed — after the manual corrections — so a story removed by hand last
+    week is not in it, and stays governed by its own 'removidas' entry.
+
+    Returns (folder name, set of URL keys), or (None, empty set) when there is no
+    earlier edition to compare against.
+    """
+    antes_de = antes_de or datetime.now()
+    limite = (antes_de - timedelta(days=DIAS_ENTRE_EDICOES)).date()
+    if not os.path.isdir(ARCHIVE_DIR):
+        return None, set()
+
+    candidatas = []
+    for nome in os.listdir(ARCHIVE_DIR):
+        try:
+            dia = datetime.strptime(nome, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if dia <= limite and os.path.exists(os.path.join(ARCHIVE_DIR, nome, FINAL_NAME)):
+            candidatas.append((dia, nome))
+    if not candidatas:
+        return None, set()
+
+    _, nome = max(candidatas)
+    itens = _load(os.path.join(ARCHIVE_DIR, nome, FINAL_NAME)) or []
+    return nome, {url_chave(i.get("url", "")) for i in itens if i.get("url")}
 
 
 def _edition_dir(when: Optional[datetime] = None) -> str:

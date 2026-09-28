@@ -317,14 +317,14 @@ Se depois de algumas edições o número for alto, a saída não é afrouxar a r
 publicar o ratio **com o rótulo explícito** ("R$ 50 mi por MW contratado"). Não
 fiz isso agora porque não estava na proposta aprovada. Sua chamada.
 
-## Decisão pendente: remover o docling?
+## O docling saiu (23 set 2026)
 
-Nenhum código do pipeline importa docling desde 22 set 2026 — só
-`tests/test_scraper.ipynb`. Tirá-lo do `requirements.txt` leva junto torch (583 MB),
-torchvision, transformers e accelerate. O venv cai de 1,5 GB para algo perto de
-200 MB, e a instalação para gente nova deixa de levar dez minutos.
-
-Custo: o notebook de teste para de rodar sem ajuste. Decisão do Pedro.
+Nenhum código do pipeline importava docling desde 22 set 2026 — só
+`tests/test_scraper.ipynb`, e o caderno não rodava nem com ele: importava também
+`requests`, `bs4` e `langchain.prompts`, nenhum declarado. O docling saiu do
+`requirements.txt` e o caderno foi apagado, com a autonomia que o Pedro deu para
+cortar o que fosse comprovadamente inútil. Numa instalação nova, deixam de vir
+torch (583 MB), torchvision, transformers e accelerate.
 
 ## Ruído no terminal: acabou
 
@@ -500,6 +500,77 @@ vinte vezes mais, e nelas o mini foi medido e não erra.
 "3 a 4 gigawatts" é lido como 4 GW; o limite inferior de um intervalo não é
 capturado. Se um resumo citar o "3", ele será acusado sem razão. Não consertei
 porque o caso não apareceu e a correção mexe no ponto mais delicado do módulo.
+
+## A edição de 28 set 2026: a primeira conferida item a item
+
+Rodada pelo Pedro no Cursor, sem nenhuma intervenção. O programa funcionou: v2,
+66 testes verdes, trava liberada, nenhuma falha de resumo ou de classificação,
+cabeçalho com a semana certa. Das **36 notícias, 11 não deveriam estar lá** e dois
+resumos diziam o que a matéria não diz. Nenhum desses erros era visível para quem
+só lesse o terminal. A conferência abriu cada caso contra o texto da matéria,
+guardado no cache do resumo.
+
+### O que foi achado
+
+| Defeito | Casos | Causa |
+|---|---|---|
+| Repetida da edição anterior | 5 (3 com a mesma URL) | A janela de 7 dias sobrepõe as edições num dia; nada comparava com a anterior |
+| Duplicata dentro da edição | 4 grupos: Google Cloud (2), Cushman (3, em três seções), DayOne (2), artigo NIMBY (2, texto idêntico) | A segunda etapa, com gpt-4o sobre os resumos, **não juntou casos óbvios** |
+| Resumo com a fonte errada | 2 (o artigo NIMBY nos dois veículos) | Atribuiu ao Fórum Econômico Mundial uma estimativa que o artigo credita à Agência Internacional de Energia |
+| Resumo que distorce o número | 1 (Monitor Mercantil) | "R$ 25 bi por projeto" onde a matéria diz "R$ 25 bi por data center de 100 MW, segundo a FGV". A ficha marcou como hipotético; o parágrafo não |
+| "Também noticiado por" com veículos que não noticiaram | 5 nomes sob o Google Cloud | Agrupamento por título transitivo juntou Google e Alibaba |
+| Alarme 🚨 falso | 2 de 3 | "um quilowatt" e "um décimo": o conferidor só lia algarismos |
+| Notícia relevante perdida | BID Invest avalia US$ 300 mi para a Scala (BNamericas, tier 1) | Paywall. Correto não resumir; não há como incluir à mão |
+
+### O que foi corrigido na edição
+
+Em `configs/overrides.json`, com o motivo de cada um: 7 removidas, 3 grupos fundidos,
+1 resumo reescrito (cada número conferido contra a matéria pelo mesmo conferidor do
+pipeline, zero sem lastro). A edição saiu com 25 notícias.
+
+**Uma exceção à regra de não editar `output/clippings.json` à mão**, autorizada pelo
+Pedro: a lista "também noticiado por" do Google Cloud. Nenhum bloco de
+`overrides.json` apaga nomes dessa lista — o `dedup` só acrescenta. Foram retirados
+ADVFN, Demócrata, FinanceFeeds, cisoadvisor e tradingkey, conferidos veículo a
+veículo contra o título que cada um publicou: os cinco escreveram só sobre a
+Alibaba. A mudança está marcada no próprio item, no campo
+`tambem_noticiado_por_corrigido_a_mao`. A saída intacta do programa está em
+`output/archive/2026-09-28/clippings.raw.json`. A edição é de uma semana só:
+nenhuma execução futura depende disso.
+
+### O que mudou no código, para a semana seguinte
+
+1. **Não repetir a edição anterior.** Depois da coleta, antes de pagar o resumo, sai
+   toda notícia cuja URL já estava na última edição que virou PDF (`clippings.final.json`
+   no arquivo, com pelo menos 3 dias de distância — para que um reprocessamento não
+   compare a edição consigo mesma). Na edição de 28/09 teria tirado exatamente as 3
+   repetidas pela URL. As 2 repetidas por fato, em outro veículo, continuam com o revisor.
+2. **Agrupamento por título sem encadeamento.** União transitiva trocada por ligação
+   média, escolhida por medição nos 91 títulos da semana: a união juntava 40 títulos
+   de duas notícias; a ligação completa separava, mas partia o Google em 4 grupos; a
+   média separa e parte o Google em 3. E os nomes das cópias dispensadas antes da
+   coleta passam a ir para uma matéria por grupo, não para todas as que ficaram — era
+   por isso que DCD e TeleSíntese imprimiam a mesma lista de 39 veículos.
+3. **Números por extenso.** "um quilowatt", "mil megawatts", "um décimo do", "um quarto
+   do", "metade dos". Só antes de unidade ou como fração de alguma coisa: "um data
+   center", "um quarto de hotel" e "há dois anos" continuam sem número. Um número
+   inventado continua sendo pego.
+
+Dez testes novos, um por caso.
+
+### O problema que ficou aberto
+
+**A segunda etapa da deduplicação está falhando em casos óbvios.** Os dois artigos
+NIMBY são o mesmo texto, palavra por palavra, e passaram. DCD e TeleSíntese relatam o
+mesmo anúncio, no mesmo evento, com os mesmos números, e passaram. Ela é a rede de
+segurança de todo o desenho em dois estágios — a razão de o agrupamento por título
+poder errar para o lado de separar. Com a correção 2, o Google chega à segunda etapa
+em três grupos em vez de dois. Se ela continuar deixando passar, a próxima edição
+pode ter mais duplicatas, não menos.
+
+Não foi mexida agora porque não era o combinado. É a primeira coisa a medir na
+próxima edição: quantos grupos de título chegam, quantos ela junta, e ler o
+porquê dos que ela não junta.
 
 ## Testes
 

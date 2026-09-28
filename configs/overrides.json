@@ -28,44 +28,135 @@
     "  empresa    — aprova a ficha de uma empresa que está em quarentena. Só sai no",
     "               PDF depois que alguém escreve aqui, com 'aprovado_por'."
   ],
-
   "versao": 1,
-
-  "removidas": [],
+  "removidas": [
+    {
+      "url": "https://www.em.com.br/tecnologia/2026/09/7504851-google-traz-ceo-do-cloud-ao-brasil-em-24-9-veja-o-que-ele-pode-anunciar-em-sp.html",
+      "data": "2026-09-28",
+      "motivo": "Repetida da edição de 22/09 (mesma URL). Além disso é a prévia do evento de 24/09, cujo anúncio já está nesta edição."
+    },
+    {
+      "url": "https://www.infomoney.com.br/business/com-redata-ascenty-projeta-quadruplicar-com-direito-a-projeto-bilionario/",
+      "data": "2026-09-28",
+      "motivo": "Repetida da edição de 22/09 (mesma URL). A janela de 7 dias sobrepõe as edições em um dia."
+    },
+    {
+      "url": "https://agenciainfra.com/blog/data-centers-driblam-ons-e-buscam-distribuidoras-para-conexao-ao-sistema/",
+      "data": "2026-09-28",
+      "motivo": "Repetida da edição de 22/09 (mesma URL)."
+    },
+    {
+      "url": "https://fiis.com.br/noticias/fundo-imobiliario-de-data-centers-da-az-quest-capta-482-milhoes-veja-detalhes-jj/",
+      "data": "2026-09-28",
+      "motivo": "Mesmo fato publicado em 22/09 por outro veículo (Estadão: AZ Quest capta R$ 482 milhões com FII de data centers)."
+    },
+    {
+      "url": "https://itforum.com.br/noticias/odata-investe-refrigeracao-data-centers/",
+      "data": "2026-09-28",
+      "motivo": "Mesmo fato publicado em 22/09 por outro veículo (TELETIME: Odata, DeltaFlow, US$ 630 mi, SP04 e QR03, fabricação em Araucária)."
+    },
+    {
+      "url": "https://www.jb.com.br/brasil/opiniao/artigos/2026/09/1061043-nimby-digital-e-a-conta-de-energia-da-inteligencia-artificial-e-datacenters.html",
+      "data": "2026-09-28",
+      "motivo": "Artigo de opinião (Jean Paul Prates), sem fato novo. O resumo atribuía ao Fórum Econômico Mundial a estimativa de ~10% do crescimento do consumo elétrico, que o artigo credita à Agência Internacional de Energia."
+    },
+    {
+      "url": "https://www.brasil247.com/blog/nimby-digital-e-a-conta-de-energia-da-inteligencia-artificial-e-data-centers/",
+      "data": "2026-09-28",
+      "motivo": "O mesmo artigo de opinião do Jornal do Brasil, republicado, com o mesmo erro de atribuição no resumo."
+    }
+  ],
   "categoria": [],
-  "resumo": [],
+  "resumo": [
+    {
+      "url": "https://monitormercantil.com.br/redata-sancionado-pode-destravar-r-25-bi-por-projeto-de-data-center-no-brasil/",
+      "data": "2026-09-28",
+      "motivo": "O resumo dizia que o Redata 'pode desbloquear R$ 25 bilhões por projeto'. A matéria diz que o mapeamento da FGV estima R$ 25 bilhões por data center de 100 MW voltado a IA: referência de projeto-tipo, não efeito da lei.",
+      "texto": "O Redata, regime especial de tributação para data centers sancionado em 15 de setembro, reduz a desvantagem de custo do Brasil frente aos Estados Unidos: segundo estudo da FGV Projetos, implantar um data center no país custava 26,7% mais que nos EUA, diferença estimada em 17,7% com os incentivos federais do regime; o ICMS, tributo estadual, não integra o Redata e segue em discussão. A reportagem cita ainda um mapeamento da FGV segundo o qual cada data center de 100 MW voltado à inteligência artificial mobiliza R$ 25 bilhões em investimentos e pode gerar até 37,2 mil empregos diretos, indiretos e induzidos, e aponta que o novo ambiente pode ajudar a dar vazão aos 26,2 GW que aguardam na fila de conexão do ONS, cerca de um quarto do consumo elétrico nacional."
+    }
+  ],
   "highlight": [],
   "fonte_nome": [],
-  "dedup": [],
+  "dedup": [
+    {
+      "manter": "https://www.datacenterdynamics.com/br/not%C3%ADcias/google-cloud-vai-dobrar-em-quatro-anos-a-capacidade-de-computa%C3%A7%C3%A3o-que-levou-nove-para-construir-no-brasil/",
+      "fundir": [
+        "https://telesintese.com.br/google-cloud-dobra-infraestrutura-e-traz-dados-do-gemini-ao-brasil/"
+      ],
+      "data": "2026-09-28",
+      "motivo": "Mesmo anúncio do Google Cloud Summit (24/09): dobrar a infraestrutura no Brasil até 2030 e processar o Gemini Enterprise localmente a partir de 15/10. Fica a versão centrada em infraestrutura."
+    },
+    {
+      "manter": "https://www.datacenterdynamics.com/br/not%C3%ADcias/cushman-wakefield-indica-que-capacidade-de-data-centers-cresce-91-em-um-ano-em-s%C3%A3o-paulo/",
+      "fundir": [
+        "https://veja.abril.com.br/economia/projetos-de-data-centers-em-sao-paulo-saltam-de-375-mw-para-mais-de-2-gw/",
+        "https://forbes.com.br/forbes-money/forbes-real-estate/2026/09/sao-paulo-lidera-data-centers/"
+      ],
+      "data": "2026-09-28",
+      "motivo": "Mesmo relatório da Cushman & Wakefield sobre São Paulo (661 MW, pipeline de 2.066 MW, vacância de 4,1%), publicado em três seções diferentes da edição."
+    },
+    {
+      "manter": "https://istoedinheiro.com.br/dayone-avanca-com-ipo-em-novembro",
+      "fundir": [
+        "https://veronoticias.com/economia/mercado-de-ipos-para-data-centers-enfrenta-maior-pressao/"
+      ],
+      "data": "2026-09-28",
+      "motivo": "Mesmo fato: IPO da DayOne em novembro, até US$ 5 bi, avaliação de ~US$ 20 bi. Fica a versão com mais dados da empresa."
+    }
+  ],
   "empresa": [],
-
   "_exemplos": {
     "removidas": [
-      {"url": "https://exemplo.com/materia", "motivo": "opinião sem fato novo",
-       "data": "2026-09-21"}
+      {
+        "url": "https://exemplo.com/materia",
+        "motivo": "opinião sem fato novo",
+        "data": "2026-09-21"
+      }
     ],
     "categoria": [
-      {"url": "https://exemplo.com/materia", "de": "clientes", "para": "inovação",
-       "motivo": "produto de software da AWS, não expansão de infraestrutura"}
+      {
+        "url": "https://exemplo.com/materia",
+        "de": "clientes",
+        "para": "inovação",
+        "motivo": "produto de software da AWS, não expansão de infraestrutura"
+      }
     ],
     "resumo": [
-      {"url": "https://exemplo.com/materia", "texto": "Resumo corrigido.",
-       "motivo": "o modelo tratou o ReData, que é regime tributário, como empresa"}
+      {
+        "url": "https://exemplo.com/materia",
+        "texto": "Resumo corrigido.",
+        "motivo": "o modelo tratou o ReData, que é regime tributário, como empresa"
+      }
     ],
-    "highlight": ["https://exemplo.com/materia"],
+    "highlight": [
+      "https://exemplo.com/materia"
+    ],
     "fonte_nome": [
-      {"url": "https://exemplo.com/materia", "para": "Investing.com"}
+      {
+        "url": "https://exemplo.com/materia",
+        "para": "Investing.com"
+      }
     ],
     "dedup": [
-      {"manter": "https://exemplo.com/a", "fundir": ["https://exemplo.com/b"],
-       "motivo": "mesma sanção, enfoques diferentes"}
+      {
+        "manter": "https://exemplo.com/a",
+        "fundir": [
+          "https://exemplo.com/b"
+        ],
+        "motivo": "mesma sanção, enfoques diferentes"
+      }
     ],
     "empresa": [
-      {"nome": "Exemplo Data Centers",
-       "overview": "Operadora brasileira de data centers, fundada em 2019.",
-       "aliases": ["Exemplo DC"],
-       "fonte": "https://exemplo.com/sobre",
-       "aprovado_por": "Pedro", "data": "2026-09-22"}
+      {
+        "nome": "Exemplo Data Centers",
+        "overview": "Operadora brasileira de data centers, fundada em 2019.",
+        "aliases": [
+          "Exemplo DC"
+        ],
+        "fonte": "https://exemplo.com/sobre",
+        "aprovado_por": "Pedro",
+        "data": "2026-09-22"
+      }
     ]
   }
 }

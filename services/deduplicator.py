@@ -99,28 +99,64 @@ def cluster_by_title(items: List[Dict], threshold: float = TITLE_THRESHOLD) -> L
               f"nenhum agrupamento prévio será feito.")
         return [[i] for i in range(len(items))]
 
-    parent = list(range(len(items)))
+    return _agrupar(vectors, threshold)
 
-    def find(i: int) -> int:
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
 
-    def union(i: int, j: int) -> None:
-        ri, rj = find(i), find(j)
-        if ri != rj:
-            parent[max(ri, rj)] = min(ri, rj)
+def _agrupar(vetores: List[List[float]], limiar: float) -> List[List[int]]:
+    """
+    Partition items into groups whose members are, on average, above the threshold.
 
-    for i in range(len(items)):
-        for j in range(i + 1, len(items)):
-            if _cosine(vectors[i], vectors[j]) >= threshold:
-                union(i, j)
+    This used to be union-find: two titles above the threshold were joined, and
+    joins were transitive. Transitive is what broke it. On 28 set 2026 "Google
+    Cloud expande infraestrutura" sat close to "Alibaba Cloud expande
+    infraestrutura", which sat close to the other Alibaba headlines, and forty
+    titles about two different announcements became one group. The Alibaba copies
+    were then dropped as reserves of the Google story, and five outlets that only
+    ever wrote about Alibaba were printed under Google as "também noticiado por".
 
-    grouped: Dict[int, List[int]] = {}
-    for i in range(len(items)):
-        grouped.setdefault(find(i), []).append(i)
-    return list(grouped.values())
+    Three rules were measured on that week's 91 titles:
+
+      union (transitive)   7 groups; one of 40 mixing Google and Alibaba
+      complete linkage     no mixing, but Google split into 4 groups (14, 6, 2, 2)
+      average linkage      no mixing, Google in 3 groups (21, 11, 2)
+
+    Complete linkage demands every pair be above 0.75, and thirty headlines of one
+    announcement never all are — so it hands the second stage eight versions of the
+    same story to merge, and that same week the second stage failed to merge two
+    of them. Average linkage joins two groups only when their members are close
+    on average, which one bridging headline cannot fake.
+
+    Returns groups of indices, singletons included, ordered by their first member.
+    """
+    n = len(vetores)
+    sim = [[0.0] * n for _ in range(n)]
+    pares = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            valor = _cosine(vetores[i], vetores[j])
+            sim[i][j] = sim[j][i] = valor
+            if valor >= limiar:
+                pares.append((valor, i, j))
+
+    grupo_de = list(range(n))
+    membros: Dict[int, List[int]] = {i: [i] for i in range(n)}
+
+    # Most similar pairs first, so the core of each story forms before anything
+    # at its edge is considered.
+    for _, i, j in sorted(pares, reverse=True):
+        a, b = grupo_de[i], grupo_de[j]
+        if a == b:
+            continue
+        media = (sum(sim[x][y] for x in membros[a] for y in membros[b])
+                 / (len(membros[a]) * len(membros[b])))
+        if media < limiar:
+            continue
+        destino, origem = min(a, b), max(a, b)
+        membros[destino].extend(membros.pop(origem))
+        for k in membros[destino]:
+            grupo_de[k] = destino
+
+    return [sorted(g) for _, g in sorted(membros.items())]
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -470,6 +506,7 @@ def deduplicate_by_summary(items: List[Dict]) -> List[Dict]:
         return _resgatar_fontes_orfas(items)
 
     dropped: set = set()
+    entregues: set = set()
     for group in groups:
         survivor = select_survivor(items, group)
         others = [i for i in group if i != survivor]
@@ -480,6 +517,8 @@ def deduplicate_by_summary(items: List[Dict]) -> List[Dict]:
         names = {items[i].get("source", "?") for i in others}
         for i in group:
             names |= set(items[i].get("_fontes_do_grupo", []))
+            if items[i].get("_grupo_id"):
+                entregues.add(items[i]["_grupo_id"])
         names.discard(items[survivor].get("source", "?"))
         items[survivor]["tambem_noticiado_por"] = sorted(names)
 
@@ -494,12 +533,12 @@ def deduplicate_by_summary(items: List[Dict]) -> List[Dict]:
 
     kept = [item for i, item in enumerate(items) if i not in dropped]
     print(f"{len(items)} -> {len(kept)} notícias ({len(dropped)} duplicatas removidas)")
-    return _resgatar_fontes_orfas(kept)
+    return _resgatar_fontes_orfas(kept, entregues)
 
 
-def _resgatar_fontes_orfas(items: List[Dict]) -> List[Dict]:
+def _resgatar_fontes_orfas(items: List[Dict], entregues: Optional[set] = None) -> List[Dict]:
     """
-    Make sure an outlet dropped before the scrape still gets named.
+    Make sure an outlet dropped before the scrape still gets named — once.
 
     The title stage drops the third and further copies of a group and records
     their names on the survivors. Those names only became the "também noticiado
@@ -507,12 +546,27 @@ def _resgatar_fontes_orfas(items: List[Dict]) -> List[Dict]:
     not, the outlet disappeared from the edition with no trace. That is a silent
     cut (DECISOES.md, Q24), caused by a step whose whole purpose is to keep the
     merge visible.
+
+    Once, not once per survivor. descartar_reservas records the names on BOTH
+    articles it keeps from a title group, so when the LLM stage kept both, both
+    printed the same list: on 28 set 2026 Data Center Dynamics and TeleSíntese
+    each carried the same 39 outlets under the same Google announcement. The
+    names now go to one article per title group — the best-ranked one still in
+    the edition — and not at all when a confirmed group already delivered them.
     """
-    resgatadas = 0
+    entregues = set(entregues or ())
+    por_grupo: Dict[int, Dict] = {}
     for item in items:
-        do_grupo = set(item.get("_fontes_do_grupo") or [])
-        if not do_grupo:
+        gid = item.get("_grupo_id")
+        if not gid or gid in entregues or not item.get("_fontes_do_grupo"):
             continue
+        atual = por_grupo.get(gid)
+        if atual is None or item.get("_grupo_ordem", 99) < atual.get("_grupo_ordem", 99):
+            por_grupo[gid] = item
+
+    resgatadas = 0
+    for item in por_grupo.values():
+        do_grupo = set(item.get("_fontes_do_grupo") or [])
         do_grupo.discard(item.get("source", ""))
         existentes = set(item.get("tambem_noticiado_por") or [])
         if do_grupo - existentes:

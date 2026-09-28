@@ -170,6 +170,42 @@ _RE_UNIDADE = re.compile(
 )
 
 
+# Spelled out, before a unit. The O Globo piece on Google's satellite writes "cerca
+# de um quilowatt de energia"; the summary wrote "1 kW", correctly, and the checker
+# raised it as a figure invented by the model because it only read digits. Only
+# the small numbers the press actually spells out, and only directly before a
+# unit — "um data center" has no unit after it and stays a word. "%" and "ha" are
+# left out: nobody writes "dez %", and "há" is a verb.
+_POR_EXTENSO = {
+    "um": 1.0, "dois": 2.0, "tres": 3.0, "quatro": 4.0, "cinco": 5.0,
+    "seis": 6.0, "sete": 7.0, "oito": 8.0, "nove": 9.0, "dez": 10.0,
+    "cem": 100.0, "mil": 1000.0,
+}
+_UNIDADE_ALT_PALAVRA = "|".join(
+    re.escape(u) for u in sorted(_UNIDADES, key=len, reverse=True) if u not in ("%", "ha")
+)
+_RE_UNIDADE_POR_EXTENSO = re.compile(
+    r"(?<![\w])(?P<palavra>" + "|".join(sorted(_POR_EXTENSO, key=len, reverse=True)) + r")"
+    r"\s+(?P<unidade>" + _UNIDADE_ALT_PALAVRA + r")(?![a-z0-9])",
+    re.IGNORECASE,
+)
+
+# Fractions, read as percentages. The Jean Paul Prates column says data centres
+# will answer for "cerca de um décimo do crescimento mundial do consumo
+# elétrico", and both summaries wrote "10%" — the same figure, flagged. Only when
+# followed by "do/da/dos/das": "um quarto do consumo" is a share, "um quarto de
+# hotel" is a room.
+_FRACOES = {
+    "um decimo": 10.0, "um quinto": 20.0, "um quarto": 25.0, "um terco": 100.0 / 3,
+    "metade": 50.0, "dois tercos": 200.0 / 3, "tres quartos": 75.0,
+}
+_RE_FRACAO = re.compile(
+    r"(?<![\w])(?P<fracao>" + "|".join(sorted(_FRACOES, key=len, reverse=True)) + r")"
+    r"\s+d[oa]s?\b",
+    re.IGNORECASE,
+)
+
+
 def _quantia(valor: float, familia: str, unidade: str, texto: str) -> Dict:
     return {"valor": valor, "familia": familia, "unidade": unidade, "texto": texto.strip()}
 
@@ -244,6 +280,26 @@ def quantias_no_texto(texto: str) -> List[Dict]:
             _quantia(numero * escala * fator, familia, _CANONICA[familia], bruto(m))
         )
         ocupado.append((m.start(), m.end()))
+
+    for m in _RE_UNIDADE_POR_EXTENSO.finditer(plano):
+        if not livre(m.start(), m.end()):
+            continue
+        numero = _POR_EXTENSO[m.group("palavra").lower()]
+        familia, fator = _UNIDADES[m.group("unidade").lower()]
+        achados.append(
+            _quantia(numero * fator, familia, _CANONICA[familia], bruto(m))
+        )
+        ocupado.append((m.start(), m.end()))
+
+    for m in _RE_FRACAO.finditer(plano):
+        inicio, fim = m.start("fracao"), m.end("fracao")
+        if not livre(inicio, fim):
+            continue
+        trecho = texto[inicio:fim] if alinhado else plano[inicio:fim]
+        achados.append(
+            _quantia(_FRACOES[m.group("fracao").lower()], "percentual", "%", trecho)
+        )
+        ocupado.append((inicio, fim))
 
     return achados
 

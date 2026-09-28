@@ -1,6 +1,6 @@
 # O que falta fazer
 
-Atualizado em 23 set 2026. As tarefas da versão 1 que estavam aqui foram todas
+Atualizado em 28 set 2026. As tarefas da versão 1 que estavam aqui foram todas
 feitas e saíram: deduplicação (`services/deduplicator.py`, dois estágios),
 prompt do classificador (segunda passagem em `services/classifier.py`) e o
 título que carregava o nome do veículo (`get_search_results.py`).
@@ -8,6 +8,33 @@ título que carregava o nome do veículo (`get_search_results.py`).
 O porquê de cada decisão está em `DECISOES.md`. Isto aqui é só a fila.
 
 ---
+
+## Primeiro da fila
+
+- **A segunda etapa da deduplicação deixou passar casos óbvios** na edição de 28/09:
+  dois artigos de opinião com o mesmo texto palavra por palavra, e o mesmo anúncio do
+  Google Cloud em dois veículos. Ela é a rede de segurança do desenho em dois
+  estágios, e desde 28/09 recebe o Google em três grupos de título em vez de dois.
+  Na próxima edição, medir: quantos grupos chegam a ela, quantos ela junta, e ler o
+  motivo dos que não junta. Ver DECISOES.md, "A edição de 28 set 2026".
+
+## O que a conferência de 28/09 mostrou e continua manual
+
+- **Mesmo fato, outra URL, na semana seguinte.** A regra nova tira só a URL idêntica.
+  AZ Quest (Estadão → Fiis) e Odata (TELETIME → IT Forum) repetiram por outro veículo
+  e dependem do revisor.
+- **Notícia de paywall não tem como entrar.** O BID Invest avaliando US$ 300 mi para a
+  Scala (BNamericas, tier 1) caiu na coleta, corretamente. Um bloco de inclusão manual
+  no `overrides.json` foi proposto e **não aprovado** por ora.
+- **A ficha marca número de mercado como número de projeto.** Os 661 MW de São Paulo
+  inteiro saíram com `escopo: projeto` nos três veículos do relatório da Cushman. Sem
+  efeito visível hoje, porque nenhum indicador foi calculado; com efeito no dia em que
+  um capex cair ao lado. Também infla a completude de matéria de relatório de mercado.
+- **A quarentena foi de 10 para 42 nomes**, e parte não é empresa: ANEEL, ONS,
+  "Governo Federal", Associação Brasileira de Data Center, a associação das empresas
+  de TIC, LAWINFRA (um evento). Candidatos ao bloco `nao_empresas` de
+  `configs/empresas.json`. Quinze nomes vêm de um único artigo (cryptoid.com.br) que
+  lista fornecedores — padrão de conteúdo patrocinado.
 
 ## Decisões que dependem de mais edições
 
@@ -45,12 +72,6 @@ Decidir se viram marca no PDF, linha no rodapé, ou nada.
 
 ## Limpeza
 
-- `tests/test_scraper.ipynb` — caderno da versão 1. Não roda: importa
-  `requests`, `bs4` e `langchain.prompts`, nenhum dos três declarado. Era o
-  único motivo de o `docling` estar no requirements.txt (1,3 GB de torch).
-  O `docling` já saiu; o caderno pode sair junto.
-- `configs/test_queries.json` — uma consulta só ("huawei cloud"), nenhum código
-  lê, nenhum documento cita.
 - `configs/overrides.json` declara `"versao": 1` e nada lê essa chave.
 
 ## Fora do código

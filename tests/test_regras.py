@@ -39,6 +39,7 @@ from services.ficha import (
 from services.classifier import normalize_category
 from services.deduplicator import (
     select_survivor, subject_figures, promover_reservas, descartar_reservas,
+    _agrupar, _resgatar_fontes_orfas,
 )
 from services.scraper import looks_blocked, cortar_no_paywall
 from services.utils.get_search_results import collect_search_results_from_rss
@@ -628,6 +629,105 @@ class Categorias(unittest.TestCase):
         categoria, reconhecida = normalize_category("tecnologia")
         self.assertEqual(categoria, "outros")
         self.assertFalse(reconhecida)
+
+
+class EdicaoDe28DeSetembro(unittest.TestCase):
+    """
+    The three defects the 28 set 2026 edition exposed, each pinned by the case
+    that exposed it.
+    """
+
+    # ── Grouping titles: no chaining ─────────────────────────────────
+    @staticmethod
+    def _vetor(graus):
+        import math
+        return [math.cos(math.radians(graus)), math.sin(math.radians(graus))]
+
+    def test_uma_manchete_ponte_nao_junta_duas_historias(self):
+        """A~B and B~C above 0.75 while A and C are unrelated: A and C stay apart.
+
+        Union-find joined all three, which is how Google and Alibaba became one
+        group of forty titles.
+        """
+        a, b, c = self._vetor(0), self._vetor(35), self._vetor(70)   # cos 0.82, 0.82, 0.34
+        grupos = _agrupar([a, b, c], 0.75)
+        juntos = [g for g in grupos if 0 in g and 2 in g]
+        self.assertEqual(juntos, [])
+        self.assertEqual(len(grupos), 2)
+
+    def test_historia_de_verdade_continua_um_grupo(self):
+        vetores = [self._vetor(0), self._vetor(10), self._vetor(20), self._vetor(90)]
+        grupos = _agrupar(vetores, 0.75)
+        self.assertIn([0, 1, 2], grupos)
+        self.assertIn([3], grupos)
+
+    # ── The names of copies dropped before the scrape: once ──────────
+    def test_nomes_das_copias_vao_para_uma_materia_so(self):
+        """Both kept articles of one title group used to print the same list."""
+        itens = [
+            {"source": "Data Center Dynamics", "_grupo_id": 1, "_grupo_ordem": 0,
+             "_fontes_do_grupo": ["UOL", "BOL"]},
+            {"source": "TeleSíntese", "_grupo_id": 1, "_grupo_ordem": 1,
+             "_fontes_do_grupo": ["UOL", "BOL"]},
+        ]
+        _resgatar_fontes_orfas(itens)
+        self.assertEqual(itens[0].get("tambem_noticiado_por"), ["BOL", "UOL"])
+        self.assertIsNone(itens[1].get("tambem_noticiado_por"))
+
+    def test_grupo_ja_entregue_pelo_modelo_nao_entrega_de_novo(self):
+        itens = [{"source": "X", "_grupo_id": 7, "_grupo_ordem": 1,
+                  "_fontes_do_grupo": ["UOL"]}]
+        _resgatar_fontes_orfas(itens, {7})
+        self.assertIsNone(itens[0].get("tambem_noticiado_por"))
+
+    # ── Numbers written out ──────────────────────────────────────────
+    def test_um_quilowatt_e_1_kw(self):
+        """O Globo: 'cerca de um quilowatt'; the summary's '1 kW' is not invented."""
+        self.assertEqual(
+            conferir_resumo("fornecerá cerca de 1 kW de energia",
+                            "fornecerão apenas cerca de um quilowatt de energia"), [])
+
+    def test_um_decimo_do_e_10_por_cento(self):
+        """The Prates column: 'um décimo do crescimento'; the summary's 10% is right."""
+        self.assertEqual(
+            conferir_resumo("cerca de 10% do crescimento do consumo",
+                            "responderão por cerca de um décimo do crescimento mundial"), [])
+
+    def test_numero_inventado_continua_pego(self):
+        self.assertEqual(
+            conferir_resumo("cerca de 12% do crescimento",
+                            "cerca de um décimo do crescimento mundial"), ["12%"])
+
+    def test_palavra_comum_nao_vira_numero(self):
+        for texto in ("um data center em Recife", "um quarto de hotel", "há dois anos"):
+            self.assertEqual(numeros.quantias_no_texto(texto), [], texto)
+
+    # ── The previous edition ─────────────────────────────────────────
+    def test_edicao_anterior_ignora_a_propria_semana_e_a_que_nao_virou_pdf(self):
+        import json
+        pasta = tempfile.mkdtemp()
+        def edicao(nome, final):
+            os.makedirs(os.path.join(pasta, nome))
+            arquivo = archive.FINAL_NAME if final else archive.RAW_NAME
+            with open(os.path.join(pasta, nome, arquivo), "w", encoding="utf-8") as f:
+                json.dump([{"url": f"https://ex.com/{nome}/"}], f)
+        edicao("2026-09-15", final=True)
+        edicao("2026-09-22", final=True)    # a de verdade
+        edicao("2026-09-24", final=False)   # rodou e nunca virou PDF
+        edicao("2026-09-27", final=True)    # a própria semana, rodada de novo
+
+        original = archive.ARCHIVE_DIR
+        archive.ARCHIVE_DIR = pasta
+        try:
+            nome, urls = archive.edicao_anterior(datetime(2026, 9, 28, 10, 0))
+        finally:
+            archive.ARCHIVE_DIR = original
+        self.assertEqual(nome, "2026-09-22")
+        self.assertEqual(urls, {"https://ex.com/2026-09-22"})
+
+    def test_url_igual_ate_a_barra_e_o_fragmento(self):
+        self.assertEqual(archive.url_chave("https://ex.com/a/#topo"),
+                         archive.url_chave("https://ex.com/a"))
 
 
 if __name__ == "__main__":

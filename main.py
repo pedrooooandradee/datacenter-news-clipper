@@ -23,7 +23,7 @@ from services.deduplicator import (
     promover_reservas, descartar_reservas,
 )
 from services.pdf_builder import build_pdf
-from services.utils.archive import archive_raw
+from services.utils.archive import archive_raw, edicao_anterior, url_chave
 from services.utils import cache
 from services.utils import trava
 from services.utils.fontes import apply_tier_gate
@@ -66,7 +66,8 @@ FINGERPRINT_SOURCES = {
     # and drop_failed_and_stale (STALE_MARGIN_DAYS). Changing either changed the
     # stage's output and left the cache looking untouched.
     "scrape": ["services/scraper.py", "services/deduplicator.py",
-               "configs/fontes.json", "services/utils/fontes.py", "main.py"],
+               "configs/fontes.json", "services/utils/fontes.py",
+               "services/utils/archive.py", "main.py"],
     "summarize": ["configs/summarization_prompt.txt", "services/summarizer.py",
                   "configs/modelos.json", "main.py"],
     "ficha": ["configs/ficha_prompt.txt", "services/ficha.py",
@@ -172,6 +173,39 @@ def drop_failed_and_stale(items, days: int = 7):
         print(f"⚠️  {len(unverified)} sem data na página, MANTIDAS e marcadas "
               f"como data não verificada.")
 
+    return kept
+
+
+def drop_already_published(items):
+    """
+    Remove what the previous edition already carried, by URL.
+
+    The window is seven civil days and editions close weekly, so two consecutive
+    editions share a day. On 28 set 2026 that put five of the previous week's
+    stories back in front of the reader, three of them at the very same URL.
+
+    This runs right after the scrape, where the Google News wrapper has already
+    been resolved into the article's own address, and before anything is paid to
+    summarise it. Matching the exact URL cannot drop a new story. What it does not
+    catch is the same fact at another outlet's URL — the AZ Quest fund and the
+    Odata cooling system that week — which still needs the reviewer.
+    """
+    nome, publicadas = edicao_anterior()
+    if not publicadas:
+        return items
+
+    kept, repetidas = [], []
+    for item in items:
+        if url_chave(item.get("url", "")) in publicadas:
+            repetidas.append(f"{item.get('source', '?')} — {item.get('title', '')[:60]}")
+        else:
+            kept.append(item)
+
+    if repetidas:
+        print(f"↩️  {len(repetidas)} notícias já saíram na edição de {nome} "
+              f"(mesma URL) e foram retiradas:")
+        for entrada in repetidas:
+            print(f"     - {entrada}")
     return kept
 
 
@@ -334,6 +368,7 @@ def _executar(args):
         items = descartar_reservas(items)
         print(f"Scraped bodies for {len(items)} items")
         items = drop_failed_and_stale(items)
+        items = drop_already_published(items)
         if not items:
             print("No usable articles after scraping. Exiting.")
             return
