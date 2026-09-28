@@ -82,5 +82,5 @@ Decidir se viram marca no PDF, linha no rodapé, ou nada.
   Leo e segue público com a v1 — vale pedir a ele que o arquive, com um aviso
   apontando para o novo.
 - **Não existe documento de operação**: para quem vai o PDF, por qual canal, em
-  que dia, quem aprova antes de enviar, quem tem a logo e quem paga a chave da
+  que dia, quem aprova antes de enviar e quem paga a chave da
   OpenAI. Nada disso está escrito em lugar nenhum.

@@ -35,7 +35,6 @@ proposals behind some of the rules, kept for the record.
 3. [Set Up Python Environment](#step-3-set-up-python-environment)
 4. [Install Python Dependencies](#step-4-install-python-dependencies)
 5. [Configure .env file](#step-5-configure-env-file)
-6. [Add the Client's Logo](#step-6-add-the-clients-logo-optional)
 
 ---
 
@@ -250,23 +249,6 @@ fails to build (see Step 3).
 
 ---
 
-## Step 6: Add the Client's Logo (optional)
-
-Everything the program needs to run is in the repository. One file is not: the
-client's logo, `configs/247.original.jpg`. It is a brand asset and this
-repository is public, so it is deliberately left out.
-
-**The program runs without it.** The PDF is generated complete, without the
-image in the header, and the program prints a warning saying the file is
-missing. Ask whoever already has it for a copy and drop it in `configs/` when
-you need the branded edition.
-
-(Until 23 Sep 2026 that warning did not exist: WeasyPrint silently drops the
-image and returns a valid PDF, so a logo-less edition could be sent to the
-client unnoticed. The warning is now printed by the program itself.)
-
----
-
 ## Setup Troubleshooting
 
 **Issue**: "brew: command not found"
@@ -362,7 +344,7 @@ article. **Open the link and check the number before sending.** On the
 | OpenAI API error | `.env` missing or the key is wrong. `cp .env.example .env` |
 | Chrome or driver errors in `scrape` | Google Chrome is not installed. Step 1 |
 | `(venv)` not showing | Run `source venv/bin/activate` from the project folder |
-| PDF has no logo in the header | `configs/247.original.jpg` is missing. Step 6 |
+| PDF has no logo in the header | `configs/247.original.jpg` was deleted. `git checkout configs/247.original.jpg` |
 | PDF generation fails | `configs/clipping_template.html` is the only file the PDF truly needs; the logo is optional |
 | "Já existe uma execução em andamento" | Another run is going, or one died. `output/execucao.lock` holds the pid |
 
@@ -380,15 +362,14 @@ article. **Open the link and check the number before sending.** On the
 
 ## What is deliberately NOT in this repository
 
-This repository is public. Three things are kept out on purpose:
+This repository is public. Two things are kept out on purpose:
 
 - **`.env`** — the OpenAI key, tied to a credit card.
-- **`configs/247.original.jpg`** — the client's logo, a brand asset.
 - **`output/archive/`** — full text of third-party articles, and the editions
   already corrected by hand for the client.
 
-Everything else is here, including the PDF template, so a clone builds a
-complete edition.
+Everything else is here, including the PDF template and the client's logo, so a
+clone builds a complete, branded edition.
 
 ---
 

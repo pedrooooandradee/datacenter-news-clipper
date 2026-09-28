@@ -54,10 +54,9 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# A logo é ativo de marca do cliente e não vai para um repositório público.
-# O PDF é gerado sem ela: o WeasyPrint avisa que a imagem falta e segue. Quem
-# for enviar a edição pede o arquivo a quem tem, e põe em configs/.
-configs/247.original.jpg
+# configs/247.original.jpg ENTRA no repositório desde 28 set 2026, por decisão
+# do Pedro: quem clona tem de conseguir gerar a edição completa sem pedir
+# arquivo a ninguém. Ver DECISOES.md, "Pendências fora do código".
 
 # Output/Generated files
 output/*.pdf

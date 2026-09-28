@@ -190,18 +190,17 @@ def generate_pdf_from_html(html_string: str, output_path: str) -> None:
 
     base_url=CONFIGS_DIR is what makes the logo's relative path resolve.
 
-    The logo is a client brand asset and is deliberately out of the repository,
-    so a fresh clone builds a PDF with an empty header. WeasyPrint does not
-    complain about that: it drops the <img> and returns a valid document, exit
-    code 0, nothing on stderr — measured on 23 set 2026. Three documents used to
-    promise a warning that never came, which is how an edition reaches the
-    client with no logo. The warning is printed here, by us.
+    The logo is in the repository (since 28 set 2026). If it goes missing,
+    WeasyPrint does not complain: it drops the <img> and returns a valid
+    document, exit code 0, nothing on stderr — measured on 23 set 2026. That is
+    how an edition reaches the client with an empty header, so the warning is
+    printed here, by us.
     """
     if not os.path.exists(LOGO_PATH):
         print("⚠️  configs/247.original.jpg não está aqui. O PDF vai sair SEM a "
               "logo no cabeçalho.\n"
-              "     A logo é marca do cliente e não fica no repositório. Peça o "
-              "arquivo a quem já tem e ponha em configs/.\n"
+              "     Ela vem no repositório; para recuperar: "
+              "git checkout configs/247.original.jpg\n"
               "     Para conferir a edição enquanto trabalha, tudo bem. Para "
               "ENVIAR ao cliente, não.")
 

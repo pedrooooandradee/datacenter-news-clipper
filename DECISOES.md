@@ -628,9 +628,16 @@ editorial, não fato.
   `equinix`, `odata`, `scala data centers`, os hyperscalers). O que era mesmo do
   cliente eram 4 linhas em 2 arquivos, já generalizadas.
 
-  O que fica fora do repositório, de propósito: o `.env` com a chave da OpenAI,
-  a logo `configs/247.original.jpg` e o `output/archive/` (texto integral de
-  matérias de terceiros e as edições corrigidas à mão).
+  O que fica fora do repositório, de propósito: o `.env` com a chave da OpenAI
+  e o `output/archive/` (texto integral de matérias de terceiros e as edições
+  corrigidas à mão).
+
+  **A logo entrou em 28 set 2026**, por decisão do Pedro, depois de avisado de
+  que commit em repositório público é permanente: a marca registrada do cliente
+  fica publicada no histórico, e tornar o repositório privado depois não a
+  remove. O argumento dele é o mesmo do repositório público: quem assumir tem de
+  clonar e gerar a edição completa sem pedir arquivo a ninguém. O arquivo foi
+  conferido antes: JPEG 1237×529 sem metadado de autor, copyright ou localização.
 
 - **Onde o código mora.** O repositório original, `github.com/Orimadros/datacenter-news-clipper`,
   é da conta pessoal do Leo — não do Pedro, como este documento chegou a afirmar em

@@ -53,17 +53,19 @@ O ambiente existente nessa máquina tem exatamente isso: Python 3.12.2, `pango`,
 
 ### A logo da 247
 
-O repositório é público, e a logo é ativo de marca do cliente — por isso ela
-**não** está no git. O programa roda sem ela: o PDF sai completo, só sem a
-imagem no cabeçalho, e o terminal avisa que o arquivo falta.
+Vem no repositório, em `configs/247.original.jpg`. Quem clona já gera a edição
+com a logo no cabeçalho; não precisa pedir nada a ninguém.
 
-Para gerar a edição que vai ser enviada, peça o `247.original.jpg` a quem já
-tem e ponha em `configs/`. Uma vez só; ele fica lá.
+Se o arquivo sumir, o PDF sai sem a imagem e o programa avisa no terminal. Para
+recuperar:
 
-> Até 23 set 2026 este parágrafo prometia um aviso que não existia: o
-> WeasyPrint simplesmente não desenha a imagem e devolve um PDF válido, sem uma
-> palavra. Dava para enviar ao cliente uma edição de cabeçalho vazio sem
-> perceber. O aviso agora é impresso pelo próprio programa.
+```bash
+git checkout configs/247.original.jpg
+```
+
+> O WeasyPrint, sozinho, não avisaria: ele simplesmente não desenha a imagem e
+> devolve um PDF válido, sem uma palavra. O aviso é impresso pelo próprio
+> programa, justamente para uma edição de cabeçalho vazio não chegar ao cliente.
 
 ### O Google Chrome
 
