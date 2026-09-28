@@ -53,6 +53,8 @@ jobs:
           . venv/bin/activate
           python conferir_instalacao.py --sem-chave --sem-internet
       - name: Testes
+        # Also after a failed diagnosis, so the log shows the full traceback.
+        if: success() || failure()
         run: |
           . venv/bin/activate
           python -m unittest discover -s tests
@@ -86,6 +88,8 @@ jobs:
           venv\Scripts\Activate.ps1
           python conferir_instalacao.py --sem-chave --sem-internet
       - name: Testes
+        # Also after a failed diagnosis, so the log shows the full traceback.
+        if: success() || failure()
         run: |
           venv\Scripts\Activate.ps1
           python -m unittest discover -s tests
@@ -114,6 +118,8 @@ jobs:
           . venv/bin/activate
           python conferir_instalacao.py --sem-chave --sem-internet
       - name: Testes
+        # Also after a failed diagnosis, so the log shows the full traceback.
+        if: success() || failure()
         run: |
           . venv/bin/activate
           python -m unittest discover -s tests

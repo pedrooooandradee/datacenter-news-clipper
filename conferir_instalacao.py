@@ -220,10 +220,13 @@ def conferir_testes():
         resultado = unittest.TextTestRunner(stream=fluxo, verbosity=0).run(suite)
     problemas = len(resultado.failures) + len(resultado.errors)
     if problemas:
-        nomes = [t.id().split(".")[-1] for t, _ in resultado.failures + resultado.errors][:5]
+        linhas = []
+        for teste, rastro in (resultado.failures + resultado.errors)[:5]:
+            ultima = [l for l in rastro.strip().splitlines() if l.strip()][-1]
+            linhas.append(f"{teste.id().split('.')[-1]}: {ultima.strip()[:160]}")
         registrar(False, f"Testes: {problemas} de {resultado.testsRun} falharam",
-                  "Não rode o clipping. Detalhes: python -m unittest discover -s tests\n"
-                  f"     {', '.join(nomes)}")
+                  "Não rode o clipping. Detalhes: python -m unittest discover -s tests\n     "
+                  + "\n     ".join(linhas))
     else:
         registrar(True, f"Testes: {resultado.testsRun}, todos certos")
 
